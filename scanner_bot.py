@@ -18,25 +18,32 @@ def get_realtime_data(tickers):
     all_rows = []
     for ticker in tickers:
         try:
-            ohlcv = yf.download(ticker, period="5d", interval="1d", progress=False)
+            ohlcv = yf.download(ticker, period="5d", interval="1d", progress=False, auto_adjust=True)
             
             if ohlcv.empty or "Close" not in ohlcv.columns:
                 print(f"Data kosong/tidak valid: {ticker}")
                 continue
 
-            df = ohlcv.copy()
-            df = df.reset_index()  # <-- penting agar tidak multi-index
+            df = ohlcv.copy().reset_index()
             df.rename(columns={
                 "Date": "date",
                 "Close": "close",
-                "Volume": "Volume"
+                "Volume": "volume"
             }, inplace=True)
+            
             df["ticker"] = ticker
             df["RSI"] = RSIIndicator(close=df["close"]).rsi()
-            all_rows.append(df[["ticker", "date", "Close", "Volume"]])
+            df['MACD'], df['MACD_signal'], df['MACD_hist'] = ta.MACD(df['Close'])
+            df['EMA_20'] = ta.EMA(df['Close'], timeperiod=20)
+            df['ADX'] = ta.ADX(df['High'], df['Low'], df['Close'])
+            # 👇 gunakan 'close' (huruf kecil), bukan 'Close'
+            all_rows.append(df[["ticker", "date", "close", "Volume", "RSI", "MACD", "EMA_20","ADX"]])
+        
         except Exception as e:
             print(f"❌ Gagal ambil data {ticker}: {e}")
+
     return pd.concat(all_rows, ignore_index=True) if all_rows else pd.DataFrame()
+
 
 def calculate_technical_indicators(df):
     df = df.copy()
