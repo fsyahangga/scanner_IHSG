@@ -20,7 +20,7 @@ def get_realtime_data(tickers):
 
     for ticker in tickers:
         try:
-            ohlcv = yf.download(ticker, period="1d", interval="1d", progress=False, auto_adjust=True)
+            ohlcv = yf.download(ticker, period="5d", interval="1d", progress=False, auto_adjust=True)
 
             if ohlcv.empty or "Close" not in ohlcv.columns:
                 print(f"Data kosong/tidak valid: {ticker}")
@@ -32,20 +32,24 @@ def get_realtime_data(tickers):
                 "Close": "close",
                 "Volume": "volume"
             }, inplace=True)
-
+            # ✅ Perbaiki kolom jika MultiIndex
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.get_level_values(0)
+            # ✅ Ambil data 1D
+            close_val = df["Close"].values[-1]                
             df["ticker"] = ticker
 
             # Indikator teknikal
             df["RSI"] = RSIIndicator(close=df["close"]).rsi()
 
-            macd = MACD(close=df["close"])
+            macd = MACD(close=close_val)
             df["MACD"] = macd.macd()
             df["MACD_signal"] = macd.macd_signal()
             df["MACD_hist"] = macd.macd_diff()
 
-            df["EMA_20"] = EMAIndicator(close=df["close"], window=20).ema_indicator()
+            df["EMA_20"] = EMAIndicator(close=close_val, window=20).ema_indicator()
 
-            adx = ADXIndicator(high=df["High"], low=df["Low"], close=df["close"], window=14)
+            adx = ADXIndicator(high=df["High"], low=df["Low"], close=close_val, window=14)
             df["ADX"] = adx.adx()
 
             print(f"✅ Data berhasil diproses: {ticker}")
