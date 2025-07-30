@@ -1,52 +1,78 @@
 import yfinance as yf
 import pandas as pd
-from ta.momentum import RSIIndicator
+from ta.momentum import RSIIndicator, StochasticOscillator
+from ta.volatility import BollingerBands
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from datetime import datetime
+import telegram
 import os
-import requests
 
-STOCKS = ['BBRI.JK', 'BBCA.JK', 'BMRI.JK', 'BBNI.JK', 'ARTO.JK']
+STOCKS = ["BBRI.JK", "BBCA.JK", "BMRI.JK", "BBNI.JK", "ARTO.JK"]
+START_DATE = "2024-01-01"
 
-def get_signal(stock):
-    df = yf.download(stock, period="3mo", interval="1d")
-    if df.empty or len(df) < 15:
-        return f"{stock}: Data tidak cukup"
+def get_features(df):
+    df = df.copy()
+    df['RSI'] = RSIIndicator(df['Close'], window=14).rsi()
+    bb = BollingerBands(close=df['Close'], window=20, window_dev=2)
+    df['BB_Width'] = (bb.bollinger_hband() - bb.bollinger_lband()) / df['Close']
+    stoch = StochasticOscillator(df['High'], df['Low'], df['Close'], window=14, smooth_window=3)
+    df['%K'] = stoch.stoch()
+    df['%D'] = stoch.stoch_signal()
+    df['Target'] = df['Close'].shift(-1) > df['Close']
+    df.dropna(inplace=True)
+    return df
 
-    close_series = df['Close']
-    if isinstance(close_series, pd.DataFrame):
-        close_series = close_series.squeeze()  # Convert to Series if needed
+def predict_signal(df):
+    features = ['RSI', 'BB_Width', '%K', '%D']
+    scaler = StandardScaler()
+    X = scaler.fit_transform(df[features])
+    y = df['Target'].astype(int)
 
-    rsi = RSIIndicator(close=close_series, window=14).rsi()
-    df['RSI'] = rsi
+    model = RandomForestClassifier(n_estimators=50, random_state=42)
+    model.fit(X[:-1], y[:-1])
 
-    last_rsi = df['RSI'].iloc[-1]
-    if last_rsi < 30:
-        return f"{stock}: 📉 OVERSOLD (RSI={last_rsi:.2f})"
-    elif last_rsi > 70:
-        return f"{stock}: 📈 OVERBOUGHT (RSI={last_rsi:.2f})"
-    else:
-        return f"{stock}: 🟡 Neutral (RSI={last_rsi:.2f})"
+    latest = scaler.transform([df[features].iloc[-1]])
+    prediction = model.predict(latest)[0]
+    return int(prediction)
 
-def send_telegram_message(message):
-    token = os.getenv("TELEGRAM_TOKEN")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID")
-    if not token or not chat_id:
-        print("Telegram credentials not set.")
-        return
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = {
-        'chat_id': chat_id,
-        'text': message,
-        'parse_mode': 'Markdown'
-    }
-    response = requests.post(url, data=payload)
-    if response.status_code != 200:
-        print("Failed to send Telegram message:", response.text)
+def get_signal(ticker):
+    df = yf.download(ticker, start=START_DATE, progress=False)
+    df = get_features(df)
+
+    latest = df.iloc[-1]
+    prediction = predict_signal(df)
+
+    rsi = round(latest['RSI'], 2)
+    bbwidth = round(latest['BB_Width'], 4)
+    k = round(latest['%K'], 2)
+    d = round(latest['%D'], 2)
+
+    status = "🟢 Buy" if prediction == 1 else "🔴 Sell"
+    return f"{ticker}: {status} (RSI={rsi}, BB_Width={bbwidth}, %K={k}, ML={prediction})"
+
+def send_telegram(message):
+    try:
+        token = os.environ['TELEGRAM_TOKEN']
+        chat_id = os.environ['TELEGRAM_CHAT_ID']
+        bot = telegram.Bot(token=token)
+        bot.send_message(chat_id=chat_id, text=message)
+    except Exception as e:
+        print(f"Failed to send Telegram message: {e}")
 
 def run_scanner():
-    signals = [get_signal(stock) for stock in STOCKS]
-    result = "\n".join(signals)
-    print("Signal Result:\n", result)
-    send_telegram_message(f"*Daily RSI Signal 📊*\n\n{result}")
+    results = []
+    for stock in STOCKS:
+        try:
+            signal = get_signal(stock)
+            results.append(signal)
+        except Exception as e:
+            results.append(f"{stock}: Error - {str(e)}")
+
+    output = "📈 Stock Signals " + datetime.now().strftime('%Y-%m-%d') + "\n" + "\n".join(results)
+    print("Signal Result:\n", output)
+    send_telegram(output)
 
 if __name__ == "__main__":
     run_scanner()
