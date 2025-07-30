@@ -18,7 +18,7 @@ def send_buy_signals():
         if df.empty:
             message = "📉 Tidak ada sinyal BUY hari ini."
         else:
-            message = "📈 Sinyal BUY Terkini:\n"
+            message = "📈📈📊 Daily Stock Scanner Result:\n"
             for _, row in df.iterrows():
                 message += f"• {row['ticker']} | RSI: {row['RSI']} | Stoch: {row['Stoch']} | Foreign: {row['Foreign_Buy_Ratio']:.2f}\n"
 

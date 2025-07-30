@@ -6,3 +6,4 @@ python-telegram-bot==13.15
 joblib
 requests
 python-dotenv
+tensorflow>=2.10
