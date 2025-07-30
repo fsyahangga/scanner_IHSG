@@ -12,11 +12,6 @@ import yfinance as yf
 load_dotenv()
 TICKERS = os.getenv("FILTER_TICKER", "").split(",")
 
-# Load historical dataset
-historical_df = pd.read_csv("historical_idx_dataset.csv")
-historical_df = historical_df[historical_df['ticker'].isin(TICKERS)]
-historical_df = historical_df.reset_index(drop=True)
-
 # --- Fungsi ambil real-time ---
 def get_realtime_data(tickers):
     all_rows = []
@@ -65,53 +60,64 @@ def calculate_technical_indicators(df):
 
     return df
 
-# --- Ambil data realtime ---
-realtime_df = get_realtime_data(TICKERS)
+def clean_and_standardize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    # Standardisasi nama kolom (hilangkan spasi dan lowercase semua)
+    df.columns = [col.strip().lower().replace(" ", "_") for col in df.columns]
 
-# Pastikan index di-reset agar tidak multi-index (penting!)
-realtime_df = realtime_df.reset_index(drop=True)
+    # Deteksi kolom tanggal
+    possible_date_cols = ["date", "datetime", "tanggal", "time"]
+    date_col = next((col for col in possible_date_cols if col in df.columns), None)
 
-# Pastikan kolom 'date' dan 'ticker' dalam format yang sesuai
-realtime_df["ticker"] = realtime_df["ticker"].astype(str)
-realtime_df["date"] = pd.to_datetime(realtime_df["date"]).dt.date
+    if not date_col:
+        raise KeyError("❌ Kolom tanggal tidak ditemukan di dataset.")
 
-# --- Gabungkan ke historis ---
-historical_df["ticker"] = historical_df["ticker"].astype(str)
-historical_df["date"] = pd.to_datetime(historical_df["date"]).dt.date
+    # Konversi kolom tanggal ke datetime.date
+    df["date"] = pd.to_datetime(df[date_col]).dt.date
 
-# Gabungkan berdasarkan 'ticker' dan 'date'
-combined_df = pd.merge(
-    historical_df,
-    realtime_df[["ticker", "date", "Close", "Volume"]],
-    on=["ticker", "date"],
-    how="left"  # hindari inner agar historis tetap utuh
-)
+    # Hapus kolom tanggal lain jika bukan 'date'
+    if date_col != "date":
+        df.drop(columns=[date_col], inplace=True)
 
-# Ganti nilai fitur real-time (optional)
-combined_df["latest_close"] = combined_df["Close_y"]
-combined_df["latest_volume"] = combined_df["Volume"]
+    # Drop duplikat berdasarkan ticker + date
+    if "ticker" in df.columns:
+        df.drop_duplicates(subset=["ticker", "date"], inplace=True)
 
-# Gunakan close dari historis jika realtime kosong
-combined_df["latest_close"] = combined_df["latest_close"].fillna(combined_df["Close_x"])
+    # Optional: Drop kolom tidak relevan (jika ada)
+    drop_cols = [col for col in df.columns if col.startswith("unnamed") or col.strip() == ""]
+    df.drop(columns=drop_cols, errors='ignore', inplace=True)
 
-# Drop baris yang masih null (misal ticker gagal ambil realtime)
-combined_df = combined_df.dropna(subset=["latest_close"])
+    # Sortir berdasarkan ticker dan date
+    df = df.sort_values(by=["ticker", "date"]).reset_index(drop=True)
 
-# Rename kolom agar tidak bingung
-combined_df.rename(columns={"Close_x": "Close", "Close_y": "Close_realtime"}, inplace=True)
+    return df
 
-# Hitung indikator teknikal berbasis OHLC untuk setiap ticker
+
+# --- Load data historis dan realtime ---
+historical_df = pd.read_csv("historical_idx_dataset.csv")
+
+# 1. Ambil realtime data dari yfinance
+realtime_df = get_realtime_data(TICKERS)  # hasilnya harus ada ['ticker', 'date', 'Close', 'Volume']
+
+# 2. Untuk setiap ticker, hitung indikator teknikal
 df_list = []
-for ticker in combined_df["ticker"].unique():
-    df = combined_df[combined_df["ticker"] == ticker].copy()
-    df = calculate_technical_indicators(df)  # fungsi sebelumnya sudah mendukung MACD, EMA, ADX
+for ticker in realtime_df["ticker"].unique():
+    df = realtime_df[realtime_df["ticker"] == ticker].copy()
+    df = calculate_technical_indicators(df)  # hasilnya: + RSI, Stoch, BB_bbm, BB_bbh, BB_bbl
     df_list.append(df)
 
-# Gabungkan kembali hasil per ticker
-final_df = pd.concat(df_list).dropna().reset_index(drop=True)
+# 3. Gabungkan semua jadi satu DataFrame
+new_data = pd.concat(df_list).dropna().reset_index(drop=True)
 
-# Simpan dataset ke file
+# 4. Tambahkan label `target` (opsional, tergantung definisi target kamu)
+new_data["target"] = 0  # placeholder / bisa pakai strategi label lain
+
+# 5. Gabungkan dengan historical
+historical = pd.read_csv("historical_idx_dataset.csv")
+final_df = pd.concat([historical, new_data], ignore_index=True)
+
+# 6. Simpan kembali
 final_df.to_csv("historical_idx_dataset.csv", index=False)
+
 print("✅ Dataset dengan indikator teknikal OHLC disimpan.")
 print("✅ Dataset berhasil diperbarui dan disimpan ke historical_idx_dataset.csv.")
 
