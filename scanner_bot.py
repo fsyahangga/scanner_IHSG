@@ -42,7 +42,7 @@ def get_realtime_data(tickers):
             df["ticker"] = ticker
 
             # Indikator teknikal
-            df["RSI"] = RSIIndicator(close=df["close"]).rsi()
+            df["RSI"] = RSIIndicator(close=close_val).rsi()
 
             macd = MACD(close=close_val)
             df["MACD"] = macd.macd()
