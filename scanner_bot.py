@@ -15,6 +15,7 @@ TICKERS = os.getenv("FILTER_TICKER", "").split(",")
 # Load historical dataset
 historical_df = pd.read_csv("historical_idx_dataset.csv")
 historical_df = historical_df[historical_df['ticker'].isin(TICKERS)]
+historical_df = historical_df.reset_index(drop=True)
 
 # --- Fungsi ambil real-time ---
 def get_realtime_data(tickers):
@@ -22,7 +23,7 @@ def get_realtime_data(tickers):
     for ticker in tickers:
         try:
             df = yf.download(ticker, period="2d", interval="1d", progress=False)
-            df = df.reset_index()
+            df = df.reset_index()  # <-- penting agar tidak multi-index
             df["ticker"] = ticker
             df.rename(columns={
                 "Date": "date",
@@ -66,30 +67,54 @@ def calculate_technical_indicators(df):
 
 # --- Ambil data realtime ---
 realtime_df = get_realtime_data(TICKERS)
+
+# Pastikan index di-reset agar tidak multi-index (penting!)
+realtime_df = realtime_df.reset_index(drop=True)
+
+# Pastikan kolom 'date' dan 'ticker' dalam format yang sesuai
+realtime_df["ticker"] = realtime_df["ticker"].astype(str)
+realtime_df["date"] = pd.to_datetime(realtime_df["date"]).dt.date
+
 # --- Gabungkan ke historis ---
-combined_df = pd.merge(historical_df, realtime_df[["ticker", "date", "Close", "Volume"]], on="ticker", how="left")
+historical_df["ticker"] = historical_df["ticker"].astype(str)
+historical_df["date"] = pd.to_datetime(historical_df["date"]).dt.date
+
+# Gabungkan berdasarkan 'ticker' dan 'date'
+combined_df = pd.merge(
+    historical_df,
+    realtime_df[["ticker", "date", "Close", "Volume"]],
+    on=["ticker", "date"],
+    how="left"  # hindari inner agar historis tetap utuh
+)
 
 # Ganti nilai fitur real-time (optional)
-combined_df["latest_close"] = combined_df["Close"]
+combined_df["latest_close"] = combined_df["Close_y"]
 combined_df["latest_volume"] = combined_df["Volume"]
 
-# Drop null (jika ada ticker gagal)
+# Gunakan close dari historis jika realtime kosong
+combined_df["latest_close"] = combined_df["latest_close"].fillna(combined_df["Close_x"])
+
+# Drop baris yang masih null (misal ticker gagal ambil realtime)
 combined_df = combined_df.dropna(subset=["latest_close"])
+
+# Rename kolom agar tidak bingung
+combined_df.rename(columns={"Close_x": "Close", "Close_y": "Close_realtime"}, inplace=True)
 
 # Hitung indikator teknikal berbasis OHLC untuk setiap ticker
 df_list = []
 for ticker in combined_df["ticker"].unique():
     df = combined_df[combined_df["ticker"] == ticker].copy()
-    df = calculate_technical_indicators(df)
+    df = calculate_technical_indicators(df)  # fungsi sebelumnya sudah mendukung MACD, EMA, ADX
     df_list.append(df)
 
-# Gabungkan kembali
+# Gabungkan kembali hasil per ticker
 final_df = pd.concat(df_list).dropna().reset_index(drop=True)
 
-# Simpan ke historical_idx_dataset.csv
+# Simpan dataset ke file
 final_df.to_csv("historical_idx_dataset.csv", index=False)
 print("✅ Dataset dengan indikator teknikal OHLC disimpan.")
 print("✅ Dataset berhasil diperbarui dan disimpan ke historical_idx_dataset.csv.")
+
 
 
 # --- Load Trained Models ---
