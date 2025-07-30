@@ -52,6 +52,7 @@ def get_realtime_data(tickers):
             all_rows.append(df[["ticker", "date", "close", "volume", "RSI", "MACD", "MACD_signal", "MACD_hist", "EMA_20", "ADX"]])
 
         except Exception as e:
+            print(f"❌ isi data: {ohlcv}: {e}")
             print(f"❌ Gagal ambil data {ticker}: {e}")
 
     return pd.concat(all_rows, ignore_index=True) if all_rows else pd.DataFrame()
