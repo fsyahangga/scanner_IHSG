@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from datetime import datetime,timedelta
 import ta
 import yfinance as yf
+from ta.momentum import RSIIndicator
 
 # --- Load Env ---
 load_dotenv()
@@ -17,14 +18,21 @@ def get_realtime_data(tickers):
     all_rows = []
     for ticker in tickers:
         try:
-            df = yf.download(ticker, period="2d", interval="1d", progress=False)
+            ohlcv = yf.download(ticker, period="5d", interval="1d", progress=False)
+            
+            if ohlcv.empty or "Close" not in ohlcv.columns:
+                print(f"Data kosong/tidak valid: {ticker}")
+                continue
+
+            df = ohlcv.copy()
             df = df.reset_index()  # <-- penting agar tidak multi-index
             df["ticker"] = ticker
             df.rename(columns={
                 "Date": "date",
-                "Close": "Close",
+                "Close": "close",
                 "Volume": "Volume"
             }, inplace=True)
+            df["RSI"] = RSIIndicator(close=df["close"]).rsi()
             all_rows.append(df[["ticker", "date", "Close", "Volume"]])
         except Exception as e:
             print(f"❌ Gagal ambil data {ticker}: {e}")
