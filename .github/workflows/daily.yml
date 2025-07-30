@@ -1,0 +1,32 @@
+# ===== .github/workflows/daily.yml =====
+name: Daily IHSG Scanner
+
+on:
+  schedule:
+    - cron: '45 1 * * *'  # 08:45 WIB
+  workflow_dispatch:
+
+jobs:
+  run-scanner:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pandas scikit-learn tensorflow requests joblib
+
+      - name: Run scanner and broadcast
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python scanner_bot.py
+          python broadcast_bot.py
