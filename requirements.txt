@@ -3,3 +3,4 @@ ta
 pandas
 scikit-learn
 python-telegram-bot==13.15
+scikit-learn
