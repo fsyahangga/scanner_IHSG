@@ -38,7 +38,7 @@ def get_realtime_data(tickers):
                 df.columns = df.columns.map(lambda x: x[0])
 
             # ✅ Ambil data 1D
-            close_val = df["Close"].values[-1]                
+            close_val = df["close"].values[-1]                
             df["ticker"] = ticker
 
             # Indikator teknikal
