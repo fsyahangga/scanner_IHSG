@@ -34,7 +34,8 @@ def get_realtime_data(tickers):
             }, inplace=True)
             # ✅ Perbaiki kolom jika MultiIndex
             if isinstance(df.columns, pd.MultiIndex):
-                df.columns = df.columns.get_level_values(0)
+                df.columns = df.columns.map(lambda x: x[0])
+                
             # ✅ Ambil data 1D
             close_val = df["Close"].values[-1]                
             df["ticker"] = ticker
