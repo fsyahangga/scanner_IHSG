@@ -8,6 +8,7 @@ from datetime import datetime,timedelta
 import ta
 import yfinance as yf
 from ta.momentum import RSIIndicator
+from ta.trend import MACD, EMAIndicator, ADXIndicator
 
 # --- Load Env ---
 load_dotenv()
@@ -16,10 +17,11 @@ TICKERS = os.getenv("FILTER_TICKER", "").split(",")
 # --- Fungsi ambil real-time ---
 def get_realtime_data(tickers):
     all_rows = []
+
     for ticker in tickers:
         try:
             ohlcv = yf.download(ticker, period="5d", interval="1d", progress=False, auto_adjust=True)
-            
+
             if ohlcv.empty or "Close" not in ohlcv.columns:
                 print(f"Data kosong/tidak valid: {ticker}")
                 continue
@@ -30,15 +32,23 @@ def get_realtime_data(tickers):
                 "Close": "close",
                 "Volume": "volume"
             }, inplace=True)
-            
+
             df["ticker"] = ticker
+
+            # Indikator teknikal
             df["RSI"] = RSIIndicator(close=df["close"]).rsi()
-            df['MACD'], df['MACD_signal'], df['MACD_hist'] = ta.MACD(df['close'])
-            df['EMA_20'] = ta.EMA(df['close'], timeperiod=20)
-            df['ADX'] = ta.ADX(df['High'], df['Low'], df['close'])
-            # 👇 gunakan 'close' (huruf kecil), bukan 'Close'
-            all_rows.append(df[["ticker", "date", "close", "Volume", "RSI", "MACD", "EMA_20","ADX"]])
-        
+            macd = MACD(close=df["close"])
+            df["MACD"] = macd.macd()
+            df["MACD_signal"] = macd.macd_signal()
+            df["MACD_hist"] = macd.macd_diff()
+
+            df["EMA_20"] = EMAIndicator(close=df["close"], window=20).ema_indicator()
+
+            adx = ADXIndicator(high=df["High"], low=df["Low"], close=df["close"], window=14)
+            df["ADX"] = adx.adx()
+
+            all_rows.append(df[["ticker", "date", "close", "volume", "RSI", "MACD", "MACD_signal", "MACD_hist", "EMA_20", "ADX"]])
+
         except Exception as e:
             print(f"❌ Gagal ambil data {ticker}: {e}")
 
