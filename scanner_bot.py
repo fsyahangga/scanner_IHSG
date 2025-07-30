@@ -6,8 +6,8 @@ import requests
 
 # ============ CONFIG ==============
 STOCKS = ['BBRI.JK', 'BMRI.JK', 'BBNI.JK', 'CDIA.JK', 'COIN.JK']  # Watchlist kamu
-TELEGRAM_TOKEN = 'isi_token_bot_kamu'
-TELEGRAM_CHAT_ID = 'isi_chat_id_kamu'
+TELEGRAM_TOKEN = 'TELEGRAM_TOKEN'
+TELEGRAM_CHAT_ID = 'TELEGRAM_CHAT_ID'
 
 # ========== FUNGSI UTAMA ==========
 def get_signal(stock):
