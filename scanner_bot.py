@@ -26,7 +26,9 @@ def get_realtime_data(tickers):
             if ohlcv.empty or "Close" not in ohlcv.columns:
                 print(f"Data kosong/tidak valid: {ticker}")
                 continue
-
+            if ohlcv.empty or len(ohlcv) < 15:
+                print(f"❌ Data tidak cukup: {ticker}")
+                continue
             df = ohlcv.copy().reset_index()
             df.rename(columns={
                 "Date": "date",
@@ -45,7 +47,7 @@ def get_realtime_data(tickers):
             if len(df) < 15:
                 print(f"❌ Data terlalu pendek untuk indikator teknikal: {ticker}")
                 continue   
-                     
+
             df["ticker"] = ticker
 
             df["RSI"] = RSIIndicator(close=df["close"]).rsi()
