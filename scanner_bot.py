@@ -20,7 +20,7 @@ def get_realtime_data(tickers):
 
     for ticker in tickers:
         try:
-            ohlcv = yf.download(ticker, period="5d", interval="1d", progress=False, auto_adjust=True)
+            ohlcv = yf.download(ticker, period="21d", interval="1d", progress=False, auto_adjust=True)
             if isinstance(ohlcv.columns, pd.MultiIndex):
                 ohlcv.columns = [col[0] if isinstance(col, tuple) else col for col in ohlcv.columns]
             if ohlcv.empty or "Close" not in ohlcv.columns:
@@ -41,7 +41,11 @@ def get_realtime_data(tickers):
                 df.columns = df.columns.map(lambda x: x[0])
 
             # ✅ Ambil data 1D
-            close_val = df["close"].values[-1]                
+            close_val = df["close"].values[-1]    
+            if len(df) < 15:
+                print(f"❌ Data terlalu pendek untuk indikator teknikal: {ticker}")
+                continue   
+                     
             df["ticker"] = ticker
 
             df["RSI"] = RSIIndicator(close=df["close"]).rsi()
@@ -62,7 +66,7 @@ def get_realtime_data(tickers):
             all_rows.append(df[["ticker", "date", "close", "open", "high", "low", "volume", "RSI", "MACD", "MACD_signal", "MACD_hist", "EMA_20", "ADX"]])
 
         except Exception as e:
-            print(f"❌ isi data: {ohlcv}: {e}")
+            print(f"❌ isi data: {ohlcv.tail() if 'ohlcv' in locals() else 'tidak tersedia'}: {e}")
             print(f"❌ Gagal ambil data {ticker}: {e}")
 
     return pd.concat(all_rows, ignore_index=True) if all_rows else pd.DataFrame()
