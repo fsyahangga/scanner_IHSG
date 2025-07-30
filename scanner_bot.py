@@ -234,5 +234,7 @@ for ticker in data["ticker"].unique():
 
 # --- Save Results ---
 df_signals = pd.DataFrame(signal_results)
-df_signals.to_csv("buy_signals.csv", index=False)
+base_path = os.getcwd()
+file_path = os.path.join(base_path, "buy_signals.csv")
+df_signals.to_csv(file_path, index=False)
 print(f"✅ {len(df_signals)} sinyal BUY disimpan.")
