@@ -2,10 +2,10 @@ name: Daily Stock Signal Scanner
 
 on:
   schedule:
-    - cron: '45 1 * * *' # UTC 01:45 = 08:45 WIB
+    - cron: '45 1 * * *' # 08:45 WIB
   push:
-      branches:
-        - main
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
@@ -18,18 +18,14 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.11
+          python-version: '3.11'
 
       - name: Install Dependencies
         run: |
-          pip install yfinance pandas ta requests python-telegram-bot
-          python -m pip install --upgrade pip
-          # pip install -r requirements.txt
-      
+          pip install yfinance pandas ta requests
+
       - name: Run Scanner Bot
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          python scanner_bot.py
-    
+        run: python scanner_bot.py
