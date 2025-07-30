@@ -33,9 +33,9 @@ def get_realtime_data(tickers):
             
             df["ticker"] = ticker
             df["RSI"] = RSIIndicator(close=df["close"]).rsi()
-            df['MACD'], df['MACD_signal'], df['MACD_hist'] = ta.MACD(df['Close'])
-            df['EMA_20'] = ta.EMA(df['Close'], timeperiod=20)
-            df['ADX'] = ta.ADX(df['High'], df['Low'], df['Close'])
+            df['MACD'], df['MACD_signal'], df['MACD_hist'] = ta.MACD(df['close'])
+            df['EMA_20'] = ta.EMA(df['close'], timeperiod=20)
+            df['ADX'] = ta.ADX(df['High'], df['Low'], df['close'])
             # 👇 gunakan 'close' (huruf kecil), bukan 'Close'
             all_rows.append(df[["ticker", "date", "close", "Volume", "RSI", "MACD", "EMA_20","ADX"]])
         
