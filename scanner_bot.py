@@ -21,7 +21,8 @@ def get_realtime_data(tickers):
     for ticker in tickers:
         try:
             ohlcv = yf.download(ticker, period="5d", interval="1d", progress=False, auto_adjust=True)
-
+            if isinstance(ohlcv.columns, pd.MultiIndex):
+                ohlcv.columns = [col[0] if isinstance(col, tuple) else col for col in ohlcv.columns]
             if ohlcv.empty or "Close" not in ohlcv.columns:
                 print(f"Data kosong/tidak valid: {ticker}")
                 continue
@@ -35,7 +36,7 @@ def get_realtime_data(tickers):
             # ✅ Perbaiki kolom jika MultiIndex
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.map(lambda x: x[0])
-                
+
             # ✅ Ambil data 1D
             close_val = df["Close"].values[-1]                
             df["ticker"] = ticker
