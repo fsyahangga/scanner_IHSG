@@ -41,18 +41,18 @@ def get_realtime_data(tickers):
             close_val = df["close"].values[-1]                
             df["ticker"] = ticker
 
-            # Indikator teknikal
-            df["RSI"] = RSIIndicator(close=close_val).rsi()
+            df["RSI"] = RSIIndicator(close=df["close"]).rsi()
 
-            macd = MACD(close=close_val)
+            macd = MACD(close=df["close"])
             df["MACD"] = macd.macd()
             df["MACD_signal"] = macd.macd_signal()
             df["MACD_hist"] = macd.macd_diff()
 
-            df["EMA_20"] = EMAIndicator(close=close_val, window=20).ema_indicator()
+            df["EMA_20"] = EMAIndicator(close=df["close"], window=20).ema_indicator()
 
-            adx = ADXIndicator(high=df["High"], low=df["Low"], close=close_val, window=14)
+            adx = ADXIndicator(high=df["high"], low=df["low"], close=df["close"], window=14)
             df["ADX"] = adx.adx()
+            df["buy_signal"] = (df["RSI"] < 30) & (df["MACD"] > df["MACD_signal"])
 
             print(f"✅ Data berhasil diproses: {ticker}")
             all_rows.append(df[["ticker", "date", "close", "volume", "RSI", "MACD", "MACD_signal", "MACD_hist", "EMA_20", "ADX"]])
