@@ -7,7 +7,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Dense, Dropout
 from tensorflow.keras.utils import to_categorical
 import joblib
 
@@ -56,13 +56,30 @@ model.save("deep_learning_model.h5")
 
 # Optional: Export retrain function for automation
 def retrain_models():
-    """Retrain models from CSV automatically."""
-    df = pd.read_csv(DATA_PATH)
-    X = df.drop(columns=["Target"])
-    y = df["Target"]
+    df = pd.read_csv("historical_idx_dataset.csv")
+    df.dropna(inplace=True)
+
+    X = df[['RSI', 'Stoch', 'BB_bbm', 'BB_bbh', 'BB_bbl', 'Volume_Spike']]
+    y = df['Label']
+
+    scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
-    X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
-    rf_model.fit(X_train, y_train)
-    joblib.dump(rf_model, "random_forest_model.pkl")
-    model.fit(X_train, to_categorical(y_train, num_classes), epochs=10, verbose=0)
+
+    # Save scaler
+    joblib.dump(scaler, "scaler.pkl")
+
+    # Random Forest
+    rf = RandomForestClassifier(n_estimators=100, random_state=42)
+    rf.fit(X_scaled, y)
+    joblib.dump(rf, "random_forest_model.pkl")
+
+    # DNN Model
+    model = Sequential([
+        Dense(64, input_shape=(X_scaled.shape[1],), activation='relu'),
+        Dropout(0.2),
+        Dense(32, activation='relu'),
+        Dense(2, activation='softmax')
+    ])
+    model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+    model.fit(X_scaled, y, epochs=20, batch_size=16, verbose=0)
     model.save("deep_learning_model.h5")

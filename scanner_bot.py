@@ -6,7 +6,11 @@ from tensorflow.keras.models import load_model
 import numpy as np
 import yfinance as yf
 from datetime import datetime
-
+import os
+if not os.path.exists("random_forest_model.pkl") or not os.path.exists("deep_learning_model.h5"):
+    from train_model import retrain_models
+    retrain_models()
+    
 # Load models
 rf_model = joblib.load("random_forest_model.pkl")
 scaler = joblib.load("scaler.pkl")
