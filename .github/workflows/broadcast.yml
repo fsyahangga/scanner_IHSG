@@ -3,6 +3,9 @@ name: Daily Scanner Broadcast
 on:
   schedule:
     - cron: "45 1 * * *" # 08:45 WIB
+  push:
+    branches:
+      - main  # Trigger saat ada commit ke branch main
   workflow_dispatch:
 
 jobs:
@@ -11,10 +14,10 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: 3.11
 
