@@ -1,62 +1,68 @@
+# train_model.py
+
 import pandas as pd
-import yfinance as yf
+import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import classification_report
+from sklearn.metrics import accuracy_score
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.utils import to_categorical
 import joblib
-import os
-from keras.models import Sequential
-from keras.layers import Dense
-from keras.models import load_model
 
-TICKERS = ["BBRI.JK", "BBNI.JK", "BMRI.JK", "BBCA.JK", "ARTO.JK"]
-MODEL_DIR = "models"
+# Load dataset
+DATA_PATH = "historical_idx_dataset.csv"
+df = pd.read_csv(DATA_PATH)
 
-def download_data(ticker):
-    df = yf.download(ticker, period="1y")
-    df.dropna(inplace=True)
-    df['MA5'] = df['Close'].rolling(window=5).mean()
-    df['MA10'] = df['Close'].rolling(window=10).mean()
-    df['Return'] = df['Close'].pct_change()
-    df['Target'] = (df['Close'].shift(-1) > df['Close']).astype(int)
-    df.dropna(inplace=True)
-    return df
+# Features & target
+X = df.drop(columns=["Target"])
+y = df["Target"]
 
-def build_rf_model(X_train, y_train):
-    rf = RandomForestClassifier(n_estimators=100, random_state=42)
-    rf.fit(X_train, y_train)
-    return rf
+# Scaling
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
 
-def build_dnn_model(input_dim):
-    model = Sequential()
-    model.add(Dense(64, input_dim=input_dim, activation='relu'))
-    model.add(Dense(32, activation='relu'))
-    model.add(Dense(1, activation='sigmoid'))
-    model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
-    return model
+# Train/test split
+X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
 
-def train_and_save_models():
-    os.makedirs(MODEL_DIR, exist_ok=True)
-    for ticker in TICKERS:
-        print(f"Training model for {ticker}")
-        df = download_data(ticker)
-        X = df[['Open', 'High', 'Low', 'Close', 'Volume', 'MA5', 'MA10', 'Return']]
-        y = df['Target']
+# Train RandomForest
+rf_model = RandomForestClassifier(n_estimators=100, random_state=42)
+rf_model.fit(X_train, y_train)
+rf_pred = rf_model.predict(X_test)
+print(f"RandomForest Accuracy: {accuracy_score(y_test, rf_pred):.2f}")
 
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
-        X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+# Save RandomForest model
+joblib.dump(rf_model, "random_forest_model.pkl")
+joblib.dump(scaler, "scaler.pkl")
 
-        rf = build_rf_model(X_train, y_train)
-        joblib.dump(rf, f"{MODEL_DIR}/rf_{ticker}.pkl")
-        joblib.dump(scaler, f"{MODEL_DIR}/scaler_{ticker}.pkl")
+# Prepare for Deep Learning
+num_classes = len(np.unique(y))
+y_train_c = to_categorical(y_train, num_classes=num_classes)
+y_test_c = to_categorical(y_test, num_classes=num_classes)
 
-        dnn = build_dnn_model(X_train.shape[1])
-        dnn.fit(X_train, y_train, epochs=50, batch_size=8, verbose=0)
-        dnn.save(f"{MODEL_DIR}/dnn_{ticker}.h5")
+# Train Deep Neural Network
+model = Sequential()
+model.add(Dense(64, activation='relu', input_shape=(X_train.shape[1],)))
+model.add(Dense(32, activation='relu'))
+model.add(Dense(num_classes, activation='softmax'))
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+model.fit(X_train, y_train_c, epochs=50, batch_size=16, verbose=0)
 
-        print(f"Saved models for {ticker}")
+# Evaluate and save
+loss, acc = model.evaluate(X_test, y_test_c, verbose=0)
+print(f"DNN Accuracy: {acc:.2f}")
+model.save("deep_learning_model.h5")
 
-if __name__ == "__main__":
-    train_and_save_models()
+# Optional: Export retrain function for automation
+def retrain_models():
+    """Retrain models from CSV automatically."""
+    df = pd.read_csv(DATA_PATH)
+    X = df.drop(columns=["Target"])
+    y = df["Target"]
+    X_scaled = scaler.fit_transform(X)
+    X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+    rf_model.fit(X_train, y_train)
+    joblib.dump(rf_model, "random_forest_model.pkl")
+    model.fit(X_train, to_categorical(y_train, num_classes), epochs=10, verbose=0)
+    model.save("deep_learning_model.h5")
