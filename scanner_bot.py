@@ -31,6 +31,9 @@ def get_realtime_data(tickers):
             df.rename(columns={
                 "Date": "date",
                 "Close": "close",
+                "Open": "open",
+                "High": "high",
+                "Low": "low",
                 "Volume": "volume"
             }, inplace=True)
             # ✅ Perbaiki kolom jika MultiIndex
@@ -56,7 +59,7 @@ def get_realtime_data(tickers):
                # Ambil baris terakhir saja
             latest = df.iloc[-1]
             print(f"✅ Data berhasil diproses: {ticker}")
-            all_rows.append(df[["ticker", "date", "close", "volume", "RSI", "MACD", "MACD_signal", "MACD_hist", "EMA_20", "ADX"]])
+            all_rows.append(df[["ticker", "date", "close", "open", "high", "low", "volume", "RSI", "MACD", "MACD_signal", "MACD_hist", "EMA_20", "ADX"]])
 
         except Exception as e:
             print(f"❌ isi data: {ohlcv}: {e}")
