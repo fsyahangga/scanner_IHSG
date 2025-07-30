@@ -192,7 +192,11 @@ scaler = joblib.load("models/feature_scaler.pkl")
 
 def predict_with_confidence(X_raw):
     X_scaled = scaler.transform(X_raw)
-    lstm_preds = lstm_model.predict(np.expand_dims(X_scaled, axis=1)).flatten()
+    if X_scaled.ndim != 2:
+        X_scaled = X_scaled.reshape(-1, X_raw.shape[1])  # jaga-jaga
+
+    lstm_input = np.expand_dims(X_scaled, axis=1)  # shape = (n_samples, 1, n_features)
+    lstm_preds = lstm_model.predict(lstm_input).flatten()
 
     rf_preds = np.mean([m.predict_proba(X_scaled)[:, 1] for m in rf_models], axis=0)
     xgb_preds = np.mean([m.predict_proba(X_scaled)[:, 1] for m in xgb_models], axis=0)
@@ -236,7 +240,12 @@ for ticker in data["ticker"].unique():
 
 # --- Save Results ---
 df_signals = pd.DataFrame(signal_results)
-base_path = os.getcwd()
-file_path = os.path.join(base_path, "buy_signals.csv")
-df_signals.to_csv(file_path, index=False)
+
+# ✅ Tambahkan kolom header meskipun kosong
+if df_signals.empty:
+    df_signals = pd.DataFrame(columns=["ticker", "confidence", "PER", "PBV", "bandarmology_score", "date", "signal"])
+if df_signals.empty:
+    print("⚠️ Tidak ada sinyal BUY hari ini.")
+df_signals.to_csv("buy_signals.csv", index=False)
 print(f"✅ {len(df_signals)} sinyal BUY disimpan.")
+

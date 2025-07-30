@@ -13,7 +13,10 @@ bot = telegram.Bot(token=TELEGRAM_TOKEN)
 
 def send_buy_signals():
     try:
-        df = pd.read_csv("buy_signals.csv")
+        try:
+            df = pd.read_csv("buy_signals.csv")
+        except pd.errors.EmptyDataError:
+            df = pd.DataFrame()  # atau isi default lain
 
         if df.empty:
             message = "📉 Tidak ada sinyal BUY hari ini."
