@@ -1,60 +1,182 @@
 import pandas as pd
 import numpy as np
 import os
-from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestClassifier
-from tensorflow.keras.models import load_model
 import joblib
-from train_model import retrain_models
-
-# Load dotenv config
+import tensorflow as tf
 from dotenv import load_dotenv
+from datetime import datetime,timedelta
+import ta
+
+# --- Load Env ---
 load_dotenv()
+TICKERS = os.getenv("FILTER_TICKER", "").split(",")
 
-# ✅ Param: filter ticker tertentu (default: None)
-FILTER_TICKER = os.getenv("FILTER_TICKER")  # Contoh: 'BBRI.JK,BBCA.JK'
-if FILTER_TICKER:
-    FILTER_TICKER = [x.strip() for x in FILTER_TICKER.split(',')]
+# Load historical dataset
+historical_df = pd.read_csv("historical_idx_dataset.csv")
+historical_df = historical_df[historical_df['ticker'].isin(TICKERS)]
 
-# ✅ Path Dataset
-DATASET_PATH = "historical_idx_dataset.csv"
+# --- Fungsi ambil real-time ---
+def get_realtime_data(tickers):
+    today = datetime.now().strftime("%Y-%m-%d")
+    yesterday = (datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d")  # toleransi weekend
 
-# ✅ Retrain models (terintegrasi)
-retrain_models()
+    df_all = []
 
-# ✅ Load dataset
-df = pd.read_csv(DATASET_PATH)
+    for t in tickers:
+        try:
+            yf_data = yf.download(t, start=yesterday, end=today, interval="1d", progress=False)
+            if not yf_data.empty:
+                row = yf_data.tail(1).copy()
+                row["ticker"] = t
+                row["date"] = row.index.strftime("%Y-%m-%d")
+                row.reset_index(drop=True, inplace=True)
+                df_all.append(row)
+        except Exception as e:
+            print(f"❌ Gagal ambil data {t}: {e}")
 
-# ✅ Filter ticker (jika ada)
-if FILTER_TICKER:
-    df = df[df['ticker'].isin(FILTER_TICKER)]
+    return pd.concat(df_all, ignore_index=True) if df_all else pd.DataFrame()
 
-# ✅ Simpan ticker dan target lalu hapus
-tickers = df['ticker'].values
-X = df.drop(['ticker', 'target'], axis=1)
-y = df['target'].values
+def calculate_technical_indicators(df):
+    df = df.copy()
+    df = df.sort_values("date")  # Urut berdasarkan waktu
 
-# ✅ Load model & scaler
-rf_model = joblib.load("random_forest_model.pkl")
-scaler = joblib.load("scaler.pkl")
-nn_model = load_model("neural_network_model.h5")
+    # --- Momentum Indicators ---
+    df["RSI"] = ta.momentum.RSIIndicator(close=df["close"]).rsi()
+    df["Stoch"] = ta.momentum.StochasticOscillator(
+        high=df["high"], low=df["low"], close=df["close"]
+    ).stoch()
+    macd = ta.trend.MACD(close=df["close"])
+    df["MACD"] = macd.macd()
 
-# ✅ Preprocessing
-X_scaled = scaler.transform(X)
+    # --- Volatility Indicator ---
+    bb = ta.volatility.BollingerBands(close=df["close"])
+    df["BB_bbm"] = bb.bollinger_mavg()
+    df["BB_bbh"] = bb.bollinger_hband()
+    df["BB_bbl"] = bb.bollinger_lband()
 
-# ✅ Predict dengan dua model
-rf_preds = rf_model.predict(X_scaled)
-nn_preds = (nn_model.predict(X_scaled) > 0.5).astype(int).flatten()
+    # --- Trend Indicators ---
+    df["EMA_12"] = ta.trend.EMAIndicator(close=df["close"], window=12).ema_indicator()
+    df["EMA_26"] = ta.trend.EMAIndicator(close=df["close"], window=26).ema_indicator()
+    df["ADX"] = ta.trend.ADXIndicator(
+        high=df["high"], low=df["low"], close=df["close"]
+    ).adx()
 
-# ✅ Filter sinyal BUY yang disetujui dua model
-buy_signals = df[(rf_preds == 1) & (nn_preds == 1)]
-buy_signals = buy_signals.copy()
-buy_signals['ticker'] = tickers[(rf_preds == 1) & (nn_preds == 1)]
+    # --- Volume Indicator ---
+    df["Volume_Spike"] = df["volume"] / df["volume"].rolling(window=20).mean()
 
-# ✅ Simpan sinyal BUY
-BUY_FILE = "buy_signals.csv"
-buy_signals.to_csv(BUY_FILE, index=False)
-print(f"✅ Sinyal BUY disimpan ke '{BUY_FILE}'")
+    return df
 
-# 🧹 Optional: Bersihkan memori
-del df, X, y, rf_preds, nn_preds
+# --- Ambil data realtime ---
+realtime_df = get_realtime_data(TICKERS)
+# --- Gabungkan ke historis ---
+combined_df = pd.merge(historical_df, realtime_df[["ticker", "date", "Close", "Volume"]], on="ticker", how="left")
+
+# Ganti nilai fitur real-time (optional)
+combined_df["latest_close"] = combined_df["Close"]
+combined_df["latest_volume"] = combined_df["Volume"]
+
+# Drop null (jika ada ticker gagal)
+combined_df = combined_df.dropna(subset=["latest_close"])
+
+# Hitung indikator teknikal berbasis OHLC untuk setiap ticker
+df_list = []
+for ticker in combined_df["ticker"].unique():
+    df = combined_df[combined_df["ticker"] == ticker].copy()
+    df = calculate_technical_indicators(df)
+    df_list.append(df)
+
+# Gabungkan kembali
+final_df = pd.concat(df_list).dropna().reset_index(drop=True)
+
+# Simpan ke historical_idx_dataset.csv
+final_df.to_csv("historical_idx_dataset.csv", index=False)
+print("✅ Dataset dengan indikator teknikal OHLC disimpan.")
+print("✅ Dataset berhasil diperbarui dan disimpan ke historical_idx_dataset.csv.")
+
+
+# --- Load Trained Models ---
+rf_model = joblib.load("models/random_forest_model.pkl")
+xgb_model = joblib.load("models/xgboost_model.pkl")
+lstm_model = tf.keras.models.load_model("models/lstm_model.h5")
+
+# --- Optional Scaler (jika digunakan saat training) ---
+try:
+    scaler = joblib.load("models/feature_scaler.pkl")
+except:
+    scaler = None
+
+# --- Load Dataset ---
+data = pd.read_csv("historical_idx_dataset.csv")
+data = data[data["ticker"].isin(TICKERS)]
+
+# --- Features ---
+FEATURES = [
+    "RSI", "Stoch", "BB_bbm", "BB_bbh", "BB_bbl", "Volume_Spike",
+    "PER", "PBV", "bandarmology_score",
+    "latest_close", "latest_volume"
+]
+
+TARGET = "target"
+
+# --- Hybrid Inference ---
+def load_models_from_folds(file_path):
+    models = []
+    with open(file_path, "r") as f:
+        for line in f:
+            model_path = line.strip()
+            models.append(joblib.load(model_path))
+    return models
+
+rf_models = load_models_from_folds("models/rf_model_folds.txt")
+xgb_models = load_models_from_folds("models/xgb_model_folds.txt")
+lstm_model = tf.keras.models.load_model("models/lstm_model.h5")
+scaler = joblib.load("models/feature_scaler.pkl")
+
+def predict_with_confidence(X_raw):
+    X_scaled = scaler.transform(X_raw)
+    lstm_preds = lstm_model.predict(np.expand_dims(X_scaled, axis=1)).flatten()
+
+    rf_preds = np.mean([m.predict_proba(X_scaled)[:, 1] for m in rf_models], axis=0)
+    xgb_preds = np.mean([m.predict_proba(X_scaled)[:, 1] for m in xgb_models], axis=0)
+
+    hybrid = (rf_preds + xgb_preds + lstm_preds) / 3
+    return hybrid
+
+
+# --- Filter Conditions ---
+def pass_fundamental(row):
+    return (row["PER"] < 15) and (row["PBV"] < 2)
+
+def pass_bandarmology(row):
+    return row["bandarmology_score"] >= 7
+
+# --- Run Screening ---
+signal_results = []
+
+for ticker in data["ticker"].unique():
+    df_ticker = data[data["ticker"] == ticker].copy()
+    if df_ticker.empty:
+        continue
+
+    latest_row = df_ticker.tail(1).iloc[0]
+    if not (pass_fundamental(latest_row) and pass_bandarmology(latest_row)):
+        continue
+
+    X = df_ticker[FEATURES].tail(1)
+    confidence = predict_with_confidence(X)[0]
+
+    if confidence > 0.7:
+        signal_results.append({
+            "ticker": ticker,
+            "confidence": round(confidence, 4),
+            "PER": latest_row["PER"],
+            "PBV": latest_row["PBV"],
+            "bandarmology_score": latest_row["bandarmology_score"],
+            "date": datetime.today().strftime("%Y-%m-%d"),
+            "signal": "BUY"
+        })
+
+# --- Save Results ---
+df_signals = pd.DataFrame(signal_results)
+df_signals.to_csv("buy_signals.csv", index=False)
+print(f"✅ {len(df_signals)} sinyal BUY disimpan.")
