@@ -122,7 +122,9 @@ historical_df = pd.read_csv("historical_idx_dataset.csv")
 
 # 1. Ambil realtime data dari yfinance
 realtime_df = get_realtime_data(TICKERS)  # hasilnya harus ada ['ticker', 'date', 'Close', 'Volume']
-
+if realtime_df.empty:
+    print("Data frame kosong. Tidak ada data berhasil diambil.")
+    exit()
 # 2. Untuk setiap ticker, hitung indikator teknikal
 df_list = []
 for ticker in realtime_df["ticker"].unique():
