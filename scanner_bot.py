@@ -50,10 +50,11 @@ def get_realtime_data(tickers):
 
             df["EMA_20"] = EMAIndicator(close=df["close"], window=20).ema_indicator()
 
-            adx = ADXIndicator(high=df["High"], low=df["Low"], close=df["close"], window=14)
+            adx = ADXIndicator(high=df["high"], low=df["low"], close=df["close"], window=14)
             df["ADX"] = adx.adx()
             df["buy_signal"] = (df["RSI"] < 30) & (df["MACD"] > df["MACD_signal"])
-
+               # Ambil baris terakhir saja
+            latest = df.iloc[-1]
             print(f"✅ Data berhasil diproses: {ticker}")
             all_rows.append(df[["ticker", "date", "close", "volume", "RSI", "MACD", "MACD_signal", "MACD_hist", "EMA_20", "ADX"]])
 
