@@ -6,6 +6,7 @@ import tensorflow as tf
 from dotenv import load_dotenv
 from datetime import datetime,timedelta
 import ta
+import yfinance as yf
 
 # --- Load Env ---
 load_dotenv()
@@ -17,24 +18,21 @@ historical_df = historical_df[historical_df['ticker'].isin(TICKERS)]
 
 # --- Fungsi ambil real-time ---
 def get_realtime_data(tickers):
-    today = datetime.now().strftime("%Y-%m-%d")
-    yesterday = (datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d")  # toleransi weekend
-
-    df_all = []
-
-    for t in tickers:
+    all_rows = []
+    for ticker in tickers:
         try:
-            yf_data = yf.download(t, start=yesterday, end=today, interval="1d", progress=False)
-            if not yf_data.empty:
-                row = yf_data.tail(1).copy()
-                row["ticker"] = t
-                row["date"] = row.index.strftime("%Y-%m-%d")
-                row.reset_index(drop=True, inplace=True)
-                df_all.append(row)
+            df = yf.download(ticker, period="2d", interval="1d", progress=False)
+            df = df.reset_index()
+            df["ticker"] = ticker
+            df.rename(columns={
+                "Date": "date",
+                "Close": "Close",
+                "Volume": "Volume"
+            }, inplace=True)
+            all_rows.append(df[["ticker", "date", "Close", "Volume"]])
         except Exception as e:
-            print(f"❌ Gagal ambil data {t}: {e}")
-
-    return pd.concat(df_all, ignore_index=True) if df_all else pd.DataFrame()
+            print(f"❌ Gagal ambil data {ticker}: {e}")
+    return pd.concat(all_rows, ignore_index=True) if all_rows else pd.DataFrame()
 
 def calculate_technical_indicators(df):
     df = df.copy()
