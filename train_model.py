@@ -16,8 +16,8 @@ DATA_PATH = "historical_idx_dataset.csv"
 df = pd.read_csv(DATA_PATH)
 
 # Features & target
-X = df.drop(columns=["Target"])
-y = df["Target"]
+X = df.drop(columns=["target"])
+y = df["target"]
 
 # Scaling
 scaler = StandardScaler()
