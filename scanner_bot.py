@@ -3,90 +3,91 @@ import pandas as pd
 import numpy as np
 from ta.momentum import RSIIndicator, StochasticOscillator
 from ta.volatility import BollingerBands
-import requests
-import os
+from datetime import datetime
+import joblib
+from tensorflow.keras.models import load_model
+from sklearn.preprocessing import StandardScaler
 
-# List saham
-STOCKS = ["BBRI.JK", "BBCA.JK", "BMRI.JK", "BBNI.JK", "ARTO.JK"]
+# Load pre-trained models
+rf_model = joblib.load("random_forest_model.pkl")
+dnn_model = load_model("deep_learning_model.h5")
+scaler = joblib.load("scaler.pkl")
+
+# Example IDX tickers
+IDX_TICKERS = ["BBRI.JK", "BBCA.JK", "BMRI.JK", "BBNI.JK", "ARTO.JK"]
 
 def get_technical_indicators(df):
-    indicators = {}
-    
-    # RSI
-    rsi = RSIIndicator(close=df['Close'], window=14).rsi()
-    indicators['RSI'] = rsi.iloc[-1]
+    df['RSI'] = RSIIndicator(close=df['Close'], window=14).rsi()
+    df['Stoch'] = StochasticOscillator(high=df['High'], low=df['Low'], close=df['Close']).stoch()
+    bb = BollingerBands(close=df['Close'])
+    df['BB_bbm'] = bb.bollinger_mavg()
+    df['BB_bbh'] = bb.bollinger_hband()
+    df['BB_bbl'] = bb.bollinger_lband()
+    df['Volume_Spike'] = df['Volume'] / df['Volume'].rolling(window=20).mean()
+    return df.dropna()
 
-    # Bollinger Bands
-    bb = BollingerBands(close=df['Close'], window=20, window_dev=2)
-    indicators['BB_Upper'] = bb.bollinger_hband().iloc[-1]
-    indicators['BB_Lower'] = bb.bollinger_lband().iloc[-1]
-    indicators['BB_Price_Position'] = (
-        "above_upper" if df['Close'].iloc[-1] > indicators['BB_Upper']
-        else "below_lower" if df['Close'].iloc[-1] < indicators['BB_Lower']
-        else "inside"
-    )
+def extract_features(df):
+    return df[['RSI', 'Stoch', 'BB_bbm', 'BB_bbh', 'BB_bbl', 'Volume_Spike']].values[-1].reshape(1, -1)
 
-    # Stochastic
-    stoch = StochasticOscillator(high=df['High'], low=df['Low'], close=df['Close'], window=14)
-    indicators['Stoch_K'] = stoch.stoch().iloc[-1]
-    indicators['Stoch_D'] = stoch.stoch_signal().iloc[-1]
+def get_prediction_signals(stock):
+    df = yf.download(stock, period="6mo", interval="1d")
+    df = get_technical_indicators(df)
+    X = scaler.transform(extract_features(df))
+    rf_pred = rf_model.predict(X)[0]
+    dnn_pred = np.argmax(dnn_model.predict(X), axis=1)[0]
 
-    return indicators
+    consensus = "🔴 Sell"
+    if rf_pred == 1 and dnn_pred == 1:
+        consensus = "🟢 Buy"
+    elif rf_pred == 1 or dnn_pred == 1:
+        consensus = "🟡 Neutral"
 
-def get_fundamentals(ticker):
-    info = ticker.info
-    return {
-        "PER": info.get("trailingPE"),
-        "PBV": info.get("priceToBook"),
-        "ROE": info.get("returnOnEquity"),
-        "ProfitMargin": info.get("profitMargins")
+    return f"{stock}: {consensus} (RF={rf_pred}, DNN={dnn_pred})"
+# Filtering dictionary
+IDX_FILTER = {
+    "perbankan_keuangan": {
+        "tickers": ["BBRI.JK", "BMRI.JK", "BBCA.JK", "BBNI.JK", "BRIS.JK"],
+        "valuasi": "murah",
+        "ai_score": 8.5
+    },
+    "teknologi_digital": {
+        "tickers": ["ARTO.JK"],
+        "valuasi": "tidak terdefinisi",
+        "ai_score": 6.5
     }
+}
 
-def generate_signal(tech, fund):
-    signal = "NEUTRAL"
+def filter_by_sector(sector_name):
+    """Return tickers based on sector name from IDX_FILTER."""
+    return IDX_FILTER.get(sector_name, {}).get("tickers", [])
 
-    # Rule-based logic
-    if tech['RSI'] < 30 and tech['BB_Price_Position'] == "below_lower" and tech['Stoch_K'] < 20:
-        signal = "BUY ✅"
-    elif tech['RSI'] > 70 and tech['BB_Price_Position'] == "above_upper" and tech['Stoch_K'] > 80:
-        signal = "SELL ❌"
-    elif fund["PER"] is not None and fund["PER"] < 10 and fund["ROE"] and fund["ROE"] > 0.15:
-        signal = "BUY ✅ (Fundamental)"
+def filter_by_valuasi(level="murah"):
+    """Return tickers by valuasi level: 'murah', 'sedang', 'premium'."""
+    return [ticker
+            for info in IDX_FILTER.values()
+            if info["valuasi"] == level
+            for ticker in info["tickers"]]
 
-    return signal
+def filter_by_ai_score(min_score=8.0):
+    """Return tickers with AI predictive score >= min_score."""
+    return [ticker
+            for info in IDX_FILTER.values()
+            if info["ai_score"] >= min_score
+            for ticker in info["tickers"]]
+
+# Contoh penggunaan (tidak dijalankan saat __main__)
+# print(filter_by_sector("perbankan_keuangan"))
+# print(filter_by_valuasi("murah"))
+# print(filter_by_ai_score(8.0))
 
 def run_scanner():
-    report = []
-
-    for symbol in STOCKS:
-        ticker = yf.Ticker(symbol)
-        df = ticker.history(period="6mo", interval="1d")
-        if df.empty or len(df) < 20:
-            continue
-
-        tech = get_technical_indicators(df)
-        fund = get_fundamentals(ticker)
-        signal = generate_signal(tech, fund)
-
-        report.append(f"{symbol}: {signal} (RSI={tech['RSI']:.2f}, PER={fund['PER']}, ROE={fund['ROE']})")
-
-    # Kirim ke Telegram
-    send_telegram("\n".join(report))
-
-def send_telegram(message):
-    token = os.getenv("TELEGRAM_TOKEN")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID")
-
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    data = {
-        "chat_id": chat_id,
-        "text": f"📈📊 *Daily Stock Scanner Result:*\n\n{message}",
-        "parse_mode": "Markdown"
-    }
-
-    response = requests.post(url, data=data)
-    if not response.ok:
-        print(f"Failed to send Telegram message: {response.text}")
+    print("📊 Daily Stock Recommendation (AI-Powered):")
+    for stock in IDX_TICKERS:
+        try:
+            signal = get_prediction_signals(stock)
+            print(signal)
+        except Exception as e:
+            print(f"{stock}: Error - {e}")
 
 if __name__ == "__main__":
     run_scanner()
