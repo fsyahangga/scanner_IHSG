@@ -23,6 +23,7 @@ jobs:
       - name: Install Dependencies
         run: |
           pip install yfinance pandas ta requests
+          pip install scikit-learn
 
       - name: Run Scanner Bot
         env:
