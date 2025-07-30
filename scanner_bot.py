@@ -26,12 +26,12 @@ def get_realtime_data(tickers):
 
             df = ohlcv.copy()
             df = df.reset_index()  # <-- penting agar tidak multi-index
-            df["ticker"] = ticker
             df.rename(columns={
                 "Date": "date",
                 "Close": "close",
                 "Volume": "Volume"
             }, inplace=True)
+            df["ticker"] = ticker
             df["RSI"] = RSIIndicator(close=df["close"]).rsi()
             all_rows.append(df[["ticker", "date", "Close", "Volume"]])
         except Exception as e:
