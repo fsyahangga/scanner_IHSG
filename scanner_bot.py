@@ -13,15 +13,23 @@ TELEGRAM_CHAT_ID = 'YOUR_TELEGRAM_CHAT_ID'
 # ========== FUNGSI UTAMA ==========
 def get_signal(stock):
     df = yf.download(stock, period="3mo", interval="1d", auto_adjust=True)
-    if df.empty or len(df) < 30:
+    if df.empty or len(df) < 50:
         return None
 
-    df['RSI'] = RSIIndicator(close=df['Close'], window=14).rsi().squeeze()
+    # Indikator RSI
+    rsi = RSIIndicator(close=df['Close'], window=14).rsi()
+    df['RSI'] = pd.Series(rsi.values.flatten(), index=df.index)
+
+    # Indikator MACD
     macd = MACD(close=df['Close'], window_slow=26, window_fast=12, window_sign=9)
-    df['MACD'] = macd.macd().squeeze()
-    df['MACD_signal'] = macd.macd_signal().squeeze()
-    df['MA20'] = SMAIndicator(close=df['Close'], window=20).sma_indicator().squeeze()
-    df['MA50'] = SMAIndicator(close=df['Close'], window=50).sma_indicator().squeeze()
+    df['MACD'] = pd.Series(macd.macd().values.flatten(), index=df.index)
+    df['MACD_signal'] = pd.Series(macd.macd_signal().values.flatten(), index=df.index)
+
+    # Indikator Moving Average
+    ma20 = SMAIndicator(close=df['Close'], window=20).sma_indicator()
+    ma50 = SMAIndicator(close=df['Close'], window=50).sma_indicator()
+    df['MA20'] = pd.Series(ma20.values.flatten(), index=df.index)
+    df['MA50'] = pd.Series(ma50.values.flatten(), index=df.index)
 
     latest = df.iloc[-1]
     prev = df.iloc[-2]
