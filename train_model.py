@@ -32,17 +32,17 @@ y = data[TARGET]
 # ------------------- StandardScaler  -------------------
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
-joblib.dump(scaler, "models/feature_scaler.pkl")
+# joblib.dump(scaler, "models/feature_scaler.pkl")
 print("✅ StandardScaler trained and saved")
 
 # ------------------- MinMaxScaler  -------------------
 scaler = MinMaxScaler()
 X_scaled = scaler.fit_transform(X)
 # Simpan scaler untuk inference
-joblib.dump(scaler, "models/feature_scaler.pkl")
+# joblib.dump(scaler, "models/feature_scaler.pkl")
 print("✅ MinMaxScaler trained and saved")
-
-
+joblib.dump(StandardScaler().fit(X), "models/standard_scaler.pkl")
+joblib.dump(MinMaxScaler().fit(X), "models/minmax_scaler.pkl")
 
 # Stratified K-Fold CV (untuk klasifikasi imbang/tidak imbang)
 skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
@@ -123,5 +123,9 @@ with open("models/rf_model_folds.txt", "w") as f:
 with open("models/xgb_model_folds.txt", "w") as f:
     f.write("\n".join(xgb_model_paths))
 
+print("\n📊 Evaluasi Akhir:")
+y_pred = best_rf_model.predict(X_scaled)
+print("Random Forest Classification Report:")
+print(classification_report(y, y_pred))
 
 print("✅ Model retrained and saved successfully.")
