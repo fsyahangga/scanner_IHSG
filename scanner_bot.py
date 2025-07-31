@@ -12,6 +12,8 @@ from ta.trend import MACD, EMAIndicator, ADXIndicator
 
 # --- Load Env ---
 load_dotenv()
+print("📁 Working Directory:", os.getcwd())
+print("📁 Files in ./models:", os.listdir("models"))
 TICKERS = os.getenv("FILTER_TICKER", "").split(",")
 
 # --- Fungsi ambil real-time ---

@@ -28,7 +28,9 @@ TARGET = "target"
 
 X = data[FEATURES].copy()
 y = data[TARGET]
-
+os.makedirs("models", exist_ok=True)
+if not os.path.exists("models"):
+    os.makedirs("models")
 # ------------------- StandardScaler  -------------------
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
@@ -41,7 +43,7 @@ X_scaled = scaler.fit_transform(X)
 # Simpan scaler untuk inference
 # joblib.dump(scaler, "models/feature_scaler.pkl")
 print("✅ MinMaxScaler trained and saved")
-os.makedirs("models", exist_ok=True)
+
 print("📁 Current working directory:", os.getcwd())
 joblib.dump(StandardScaler().fit(X), "models/standard_scaler.pkl")
 joblib.dump(MinMaxScaler().fit(X), "models/minmax_scaler.pkl")
@@ -72,6 +74,11 @@ for i, (train_idx, test_idx) in enumerate(skf.split(X_scaled, y)):
     if auc > best_rf_auc:
         best_rf_auc = auc
         best_rf_model = model
+
+if os.path.exists("models/random_forest_model.pkl"):
+    print("✅ File random_forest_model.pkl berhasil disimpan")
+else:
+    print("❌ Gagal menyimpan random_forest_model.pkl")
 
 joblib.dump(best_rf_model, "models/random_forest_model.pkl")
 print(f"✅ RF Best AUC: {best_rf_auc:.4f}")

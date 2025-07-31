@@ -31,6 +31,10 @@ jobs:
       run: |
         pip install --upgrade pip
         pip install -r requirements.txt
+    
+    - name: Run model training
+      run:
+          python train_model.py
 
     - name: Run scanner bot
       run: python scanner_bot.py
