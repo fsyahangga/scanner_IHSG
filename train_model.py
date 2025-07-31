@@ -29,8 +29,6 @@ TARGET = "target"
 X = data[FEATURES].copy()
 y = data[TARGET]
 os.makedirs("models", exist_ok=True)
-if not os.path.exists("models"):
-    os.makedirs("models")
 # ------------------- StandardScaler  -------------------
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
@@ -75,12 +73,13 @@ for i, (train_idx, test_idx) in enumerate(skf.split(X_scaled, y)):
         best_rf_auc = auc
         best_rf_model = model
 
+joblib.dump(best_rf_model, "models/random_forest_model.pkl")
 if os.path.exists("models/random_forest_model.pkl"):
     print("✅ File random_forest_model.pkl berhasil disimpan")
 else:
     print("❌ Gagal menyimpan random_forest_model.pkl")
 
-joblib.dump(best_rf_model, "models/random_forest_model.pkl")
+
 print(f"✅ RF Best AUC: {best_rf_auc:.4f}")
 
 # === XGBOOST ===
