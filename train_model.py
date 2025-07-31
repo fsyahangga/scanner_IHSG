@@ -59,8 +59,8 @@ best_rf_model = None
 rf_model_paths = []
 
 print("\n🎯 Training Random Forest with CV")
-for i, (train_idx, test_idx) in enumerate(skf.split(X_scaled, y)):
-    X_train, X_test = X_scaled[train_idx], X_scaled[test_idx]
+for i, (train_idx, test_idx) in enumerate(skf.split(StandardScaler().fit(X), y)):
+    X_train, X_test = StandardScaler().fit(X)[train_idx], StandardScaler().fit(X)[test_idx]
     y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
 
     model = RandomForestClassifier(n_estimators=100, random_state=i)
