@@ -30,14 +30,14 @@ X = data[FEATURES].copy()
 y = data[TARGET]
 os.makedirs("models", exist_ok=True)
 # ------------------- StandardScaler  -------------------
-scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X)
+# scaler = StandardScaler()
+# X_scaled = scaler.fit_transform(X)
 # joblib.dump(scaler, "models/feature_scaler.pkl")
 print("✅ StandardScaler trained and saved")
 
 # ------------------- MinMaxScaler  -------------------
-scaler = MinMaxScaler()
-X_scaled = scaler.fit_transform(X)
+# scaler = MinMaxScaler()
+# X_scaled = scaler.fit_transform(X)
 # Simpan scaler untuk inference
 # joblib.dump(scaler, "models/feature_scaler.pkl")
 print("✅ MinMaxScaler trained and saved")
