@@ -34,7 +34,7 @@ jobs:
     
     - name: Run model training
       run:
-          python train_model.py
+          python initiate_train_model.py
 
     - name: Run scanner bot
       run: python scanner_bot.py
