@@ -63,7 +63,11 @@ def get_realtime_data(tickers):
             df["ADX"] = adx.adx()
             df["buy_signal"] = (df["RSI"] < 30) & (df["MACD"] > df["MACD_signal"])
                # Ambil baris terakhir saja
-            latest = df.iloc[-1]
+            if len(df) > 0:
+                last_row = df.iloc[-1]
+            else:
+                print(f"❌ Tidak ada data untuk {ticker}")
+
             print(f"✅ Data berhasil diproses: {ticker}")
             all_rows.append(df[["ticker", "date", "close", "open", "high", "low", "volume", "RSI", "MACD", "MACD_signal", "MACD_hist", "EMA_20", "ADX"]])
 
