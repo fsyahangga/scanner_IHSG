@@ -17,7 +17,11 @@ from sklearn.model_selection import StratifiedKFold
 
 # Load dataset
 data = pd.read_csv("historical_idx_dataset.csv")
+data.columns = data.columns.str.strip()  # penting!
 
+missing = [col for col in FEATURES if col not in data.columns]
+if missing:
+    raise ValueError(f"❌ Kolom berikut hilang dari dataset: {missing}")
 # Fitur dan target
 FEATURES = [
     "RSI", "Stoch", "BB_bbm", "BB_bbh", "BB_bbl", "Volume_Spike",
