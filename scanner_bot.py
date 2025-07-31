@@ -78,33 +78,54 @@ def get_realtime_data(tickers):
 
 def calculate_technical_indicators(df):
     df = df.copy()
-    df = df.sort_values("date")  # Urut berdasarkan waktu
+    df = df.sort_values("date")
 
-    # --- Momentum Indicators ---
-    df["RSI"] = ta.momentum.RSIIndicator(close=df["close"]).rsi()
-    df["Stoch"] = ta.momentum.StochasticOscillator(
-        high=df["high"], low=df["low"], close=df["close"]
-    ).stoch()
-    macd = ta.trend.MACD(close=df["close"])
-    df["MACD"] = macd.macd()
+    try:
+        df["RSI"] = ta.momentum.RSIIndicator(close=df["close"]).rsi()
+    except:
+        df["RSI"] = np.nan
 
-    # --- Volatility Indicator ---
-    bb = ta.volatility.BollingerBands(close=df["close"])
-    df["BB_bbm"] = bb.bollinger_mavg()
-    df["BB_bbh"] = bb.bollinger_hband()
-    df["BB_bbl"] = bb.bollinger_lband()
+    try:
+        df["Stoch"] = ta.momentum.StochasticOscillator(
+            high=df["high"], low=df["low"], close=df["close"]
+        ).stoch()
+    except:
+        df["Stoch"] = np.nan
 
-    # --- Trend Indicators ---
-    df["EMA_12"] = ta.trend.EMAIndicator(close=df["close"], window=12).ema_indicator()
-    df["EMA_26"] = ta.trend.EMAIndicator(close=df["close"], window=26).ema_indicator()
-    df["ADX"] = ta.trend.ADXIndicator(
-        high=df["high"], low=df["low"], close=df["close"]
-    ).adx()
+    try:
+        macd = ta.trend.MACD(close=df["close"])
+        df["MACD"] = macd.macd()
+    except:
+        df["MACD"] = np.nan
 
-    # --- Volume Indicator ---
-    df["Volume_Spike"] = df["volume"] / df["volume"].rolling(window=20).mean()
+    try:
+        bb = ta.volatility.BollingerBands(close=df["close"])
+        df["BB_bbm"] = bb.bollinger_mavg()
+        df["BB_bbh"] = bb.bollinger_hband()
+        df["BB_bbl"] = bb.bollinger_lband()
+    except:
+        df["BB_bbm"] = df["BB_bbh"] = df["BB_bbl"] = np.nan
+
+    try:
+        df["EMA_12"] = ta.trend.EMAIndicator(close=df["close"], window=12).ema_indicator()
+        df["EMA_26"] = ta.trend.EMAIndicator(close=df["close"], window=26).ema_indicator()
+    except:
+        df["EMA_12"] = df["EMA_26"] = np.nan
+
+    try:
+        df["ADX"] = ta.trend.ADXIndicator(
+            high=df["high"], low=df["low"], close=df["close"], window=14
+        ).adx()
+    except:
+        df["ADX"] = np.nan
+
+    try:
+        df["Volume_Spike"] = df["volume"] / df["volume"].rolling(window=20).mean()
+    except:
+        df["Volume_Spike"] = np.nan
 
     return df
+
 
 def clean_and_standardize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     # Standardisasi nama kolom (hilangkan spasi dan lowercase semua)
@@ -146,12 +167,17 @@ realtime_df = get_realtime_data(TICKERS)  # hasilnya harus ada ['ticker', 'date'
 if realtime_df.empty:
     print("Data frame kosong. Tidak ada data berhasil diambil.")
     exit()
+
 # 2. Untuk setiap ticker, hitung indikator teknikal
 df_list = []
 for ticker in realtime_df["ticker"].unique():
     df = realtime_df[realtime_df["ticker"] == ticker].copy()
     df = calculate_technical_indicators(df)  # hasilnya: + RSI, Stoch, BB_bbm, BB_bbh, BB_bbl
     df_list.append(df)
+
+if not df_list:
+    print("❌ Tidak ada data valid setelah penghitungan indikator.")
+    exit()
 
 # 3. Gabungkan semua jadi satu DataFrame
 new_data = pd.concat(df_list).dropna().reset_index(drop=True)
@@ -162,6 +188,16 @@ new_data["target"] = 0  # placeholder / bisa pakai strategi label lain
 # 5. Gabungkan dengan historical
 historical = pd.read_csv("historical_idx_dataset.csv")
 final_df = pd.concat([historical, new_data], ignore_index=True)
+if "PER" not in final_df.columns:
+    final_df["PER"] = 10.0
+if "PBV" not in final_df.columns:
+    final_df["PBV"] = 1.2
+if "bandarmology_score" not in final_df.columns:
+    final_df["bandarmology_score"] = 7
+if "latest_close" not in final_df.columns:
+    final_df["latest_close"] = final_df["close"]
+if "latest_volume" not in final_df.columns:
+    final_df["latest_volume"] = final_df["volume"]
 
 # 6. Simpan kembali
 final_df.to_csv("historical_idx_dataset.csv", index=False)
