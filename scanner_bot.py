@@ -20,16 +20,17 @@ def get_realtime_data(tickers):
 
     for ticker in tickers:
         try:
-            ohlcv = yf.download(ticker, period="21d", interval="1d", progress=False, auto_adjust=True)
+            ohlcv = yf.download(ticker, period="40d", interval="1d", progress=False, auto_adjust=True)
             if isinstance(ohlcv.columns, pd.MultiIndex):
                 ohlcv.columns = [col[0] if isinstance(col, tuple) else col for col in ohlcv.columns]
             if ohlcv.empty or "Close" not in ohlcv.columns:
                 print(f"Data kosong/tidak valid: {ticker}")
                 continue
-            if ohlcv.empty or len(ohlcv) < 15:
-                print(f"❌ Data tidak cukup: {ticker}")
+            if len(ohlcv) < 20:
+                print(f"❌ Data tidak cukup (kurang dari 20 hari): {ticker}")
                 continue
-            df = ohlcv.copy().reset_index()
+
+            df = ohlcv.reset_index()
             df.rename(columns={
                 "Date": "date",
                 "Close": "close",
@@ -38,45 +39,37 @@ def get_realtime_data(tickers):
                 "Low": "low",
                 "Volume": "volume"
             }, inplace=True)
-            # ✅ Perbaiki kolom jika MultiIndex
-            if isinstance(df.columns, pd.MultiIndex):
-                df.columns = df.columns.map(lambda x: x[0])
-
-            # ✅ Ambil data 1D
-            close_val = df["close"].values[-1]    
-            if len(df) < 15:
-                print(f"❌ Data terlalu pendek untuk indikator teknikal: {ticker}")
-                continue   
 
             df["ticker"] = ticker
 
+            # Hitung indikator
             df["RSI"] = RSIIndicator(close=df["close"]).rsi()
-
             macd = MACD(close=df["close"])
             df["MACD"] = macd.macd()
             df["MACD_signal"] = macd.macd_signal()
             df["MACD_hist"] = macd.macd_diff()
-
             df["EMA_20"] = EMAIndicator(close=df["close"], window=20).ema_indicator()
-
             adx = ADXIndicator(high=df["high"], low=df["low"], close=df["close"], window=14)
             df["ADX"] = adx.adx()
-            df["buy_signal"] = (df["RSI"] < 30) & (df["MACD"] > df["MACD_signal"])
-               # Ambil baris terakhir saja
-            if len(df) > 0:
-                last_row = df.iloc[-1]
-            else:
-                print(f"❌ Tidak ada data untuk {ticker}")
 
+            # Filter sinyal buy
+            df["buy_signal"] = (df["RSI"] < 30) & (df["MACD"] > df["MACD_signal"])
+
+            if len(df.dropna()) < 1:
+                print(f"❌ Tidak cukup data valid untuk indikator: {ticker}")
+                continue
+
+            last_row = df.dropna().iloc[-1]  # Drop NA untuk menghindari index error
             print(f"✅ Data berhasil diproses: {ticker}")
-            all_rows.append(df[["ticker", "date", "close", "open", "high", "low", "volume", "RSI", "MACD", "MACD_signal", "MACD_hist", "EMA_20", "ADX"]])
+
+            all_rows.append(df[["ticker", "date", "close", "open", "high", "low", "volume",
+                                "RSI", "MACD", "MACD_signal", "MACD_hist", "EMA_20", "ADX", "buy_signal"]].dropna().iloc[[-1]])
 
         except Exception as e:
             print(f"❌ isi data: {ohlcv.tail() if 'ohlcv' in locals() else 'tidak tersedia'}: {e}")
             print(f"❌ Gagal ambil data {ticker}: {e}")
 
     return pd.concat(all_rows, ignore_index=True) if all_rows else pd.DataFrame()
-
 
 def calculate_technical_indicators(df):
     df = df.copy()
