@@ -146,3 +146,4 @@ print("Random Forest Classification Report:")
 print(classification_report(y, y_pred))
 
 print("✅ Model retrained and saved successfully.")
+print("📁 Cek isi folder models setelah training:", os.listdir("models"))
