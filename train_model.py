@@ -41,6 +41,8 @@ X_scaled = scaler.fit_transform(X)
 # Simpan scaler untuk inference
 # joblib.dump(scaler, "models/feature_scaler.pkl")
 print("✅ MinMaxScaler trained and saved")
+os.makedirs("models", exist_ok=True)
+print("📁 Current working directory:", os.getcwd())
 joblib.dump(StandardScaler().fit(X), "models/standard_scaler.pkl")
 joblib.dump(MinMaxScaler().fit(X), "models/minmax_scaler.pkl")
 
