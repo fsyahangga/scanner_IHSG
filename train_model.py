@@ -65,6 +65,10 @@ for i, (train_idx, test_idx) in enumerate(skf.split(X_scaled, y)):
     auc = roc_auc_score(y_test, prob)
 
     model_path = f"models/random_forest_fold{i+1}.pkl"
+    print("✅ Selesai melatih model. Model terbaik:", model)
+    print("📊 Skor terbaik:", auc)
+    print("🔍 Model best_rf_model:", best_rf_model)
+
     joblib.dump(model, model_path)
     rf_model_paths.append(model_path)
 
@@ -73,7 +77,12 @@ for i, (train_idx, test_idx) in enumerate(skf.split(X_scaled, y)):
         best_rf_auc = auc
         best_rf_model = model
 
-joblib.dump(best_rf_model, "models/random_forest_model.pkl")
+if best_rf_model is not None:
+    joblib.dump(best_rf_model, "models/random_forest_model.pkl")
+    print("✅ File random_forest_model.pkl berhasil disimpan")
+else:
+    print("❌ Model Random Forest tidak terbentuk!")
+
 if os.path.exists("models/random_forest_model.pkl"):
     print("✅ File random_forest_model.pkl berhasil disimpan")
 else:
