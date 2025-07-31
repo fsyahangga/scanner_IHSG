@@ -49,8 +49,13 @@ def get_realtime_data(tickers):
             df["MACD_signal"] = macd.macd_signal()
             df["MACD_hist"] = macd.macd_diff()
             df["EMA_20"] = EMAIndicator(close=df["close"], window=20).ema_indicator()
-            adx = ADXIndicator(high=df["high"], low=df["low"], close=df["close"], window=14)
-            df["ADX"] = adx.adx()
+            if len(df) >= 14:
+                adx = ADXIndicator(high=df["high"], low=df["low"], close=df["close"], window=14)
+                df["ADX"] = adx.adx()
+            else:
+                df["ADX"] = np.nan
+                print(f"❌ Data tidak cukup untuk hitung ADX: {ticker}")
+
 
             # Filter sinyal buy
             df["buy_signal"] = (df["RSI"] < 30) & (df["MACD"] > df["MACD_signal"])
