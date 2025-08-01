@@ -42,10 +42,33 @@ def calculate_bandarmology_score(ticker):
 # ---------------------------
 # Macro Sentiment (Static/Mocked)
 # ---------------------------
+def calculate_foreign_flow(buy_foreign, sell_foreign):
+    try:
+        net = buy_foreign - sell_foreign
+        ratio = buy_foreign / (buy_foreign + sell_foreign + 1e-9)
+        return round(net), round(ratio, 2)
+    except:
+        return 0, 0.0
 
 def get_macro_sentiment():
-    # TODO: Replace with real API or macro scraper
-    return "POSITIVE"
+    # Dummy static values for now (replace later with API/scraper)
+    return calculate_macro_sentiment(
+        bi_rate=6.25,
+        inflation=2.85,
+        usd_idr=15480,
+        pmi=51.2,
+        cpi=2.9
+    )
+
+def get_foreign_flow_data(ticker):
+    # Placeholder: ganti dengan hasil scraping dari RTI/EDB
+    sample_data = {
+        "BBRI.JK": (1_200_000_000, 600_000_000),
+        "BBCA.JK": (800_000_000, 700_000_000),
+        # ...
+    }
+    return calculate_foreign_flow(*sample_data.get(ticker, (0, 0)))
+
 
 # ---------------------------
 # Candlestick Pattern Detection (Simple)

@@ -2,9 +2,17 @@ import yfinance as yf
 import pandas as pd
 import datetime
 import os
+from utils import(
+    get_foreign_flow_data,
+    get_macro_sentiment
+)
 
 # List ticker IDX yang ingin dipantau (ganti sesuai kebutuhan)
 TICKERS = os.getenv("FILTER_TICKER")
+if TICKERS:
+    TICKERS = [ticker.strip() for ticker in TICKERS.split(",")]
+else:
+    raise ValueError("❌ FILTER_TICKER environment variable is not set.")
 
 def fetch_yfinance_data(tickers):
     data_rows = []
@@ -19,6 +27,8 @@ def fetch_yfinance_data(tickers):
 
             latest = hist.iloc[-1]
             info = yf_ticker.info
+            macro_sentiment = get_macro_sentiment()
+            net_foreign, foreign_ratio = get_foreign_flow_data(ticker)
 
             data_rows.append({
                 'ticker': ticker.replace('.JK', ''),
@@ -28,7 +38,7 @@ def fetch_yfinance_data(tickers):
                 'PBV': info.get('priceToBook', 0),
                 'Foreign_Buy_Ratio': 0.5,  # Dummy, nanti isi via RTI/EDA
                 'bandarmology_score': 0,   # Dummy, nanti isi via RTI broker summary
-                'macro_sentiment': 0.0,    # Dummy, nanti isi via BI/inflasi
+                'macro_sentiment': macro_sentiment,    # Dummy, nanti isi via BI/inflasi
                 'candlestick_pattern': '', # Akan dihitung ulang di scanner
             })
         except Exception as e:
