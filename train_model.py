@@ -9,7 +9,15 @@ from utils import calculate_indicators, scale_features, save_model_and_scaler
 # Load Datasets
 # ------------------------------
 historical_df = pd.read_csv("historical_idx_dataset.csv")
+# Load data
 latest_df = pd.read_csv("latest_realtime_data.csv")
+
+# Pastikan semua kolom penting tersedia
+for col in ['PER', 'PBV', 'bandarmology_score', 'Foreign_Buy_Ratio', 'macro_sentiment', 'candlestick_pattern', 'target']:
+    if col not in latest_df.columns:
+        print(f"Kolom {col} tidak ditemukan, menambahkan dengan nilai default.")
+        latest_df[col] = np.nan  # atau default lain jika dibutuhkan
+
 
 # ------------------------------
 # Preprocess latest real-time data
