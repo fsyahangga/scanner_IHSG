@@ -1,0 +1,6 @@
+ticker,date,open,high,low,close,volume,PER,PBV,bandarmology_score,Foreign_Buy_Ratio,macro_sentiment,candlestick_pattern,target
+BBRI,2025-07-29,4860,4920,4820,4880,15000000,12.5,1.8,0.72,0.61,0.3,Bullish Engulfing,1
+BMRI,2025-07-29,5700,5750,5650,5725,12000000,11.8,1.6,0.55,0.49,0.2,Doji,0
+BBNI,2025-07-29,4420,4470,4390,4450,10000000,10.7,1.3,0.60,0.53,0.1,Hammer,1
+BBCA,2025-07-29,9200,9250,9150,9225,18000000,16.2,3.5,0.45,0.35,-0.2,Bearish Harami,0
+ARTO,2025-07-29,2450,2480,2410,2460,8500000,220.0,3.2,0.30,0.25,-0.5,Shooting Star,0

@@ -8,7 +8,7 @@ from utils import calculate_indicators, scale_features, save_model_and_scaler
 # ------------------------------
 # Load & Preprocess Dataset
 # ------------------------------
-df = pd.read_csv("historical_idx_dataset.csv")
+df = pd.read_csv("latest_realtime_data.csv")
 
 # Drop NaN rows (after indicator calculation)
 df = calculate_indicators(df)
