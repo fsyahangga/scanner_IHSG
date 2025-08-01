@@ -1,1 +1,1 @@
-ticker,date,close,open,high,low,volume,RSI,MACD,MACD_signal,MACD_hist,EMA_20,ADX,buy_signal
+ticker, RSI, Stoch, PER, PBV, Bandarmology_Score, macro_sentiment,latest_close, latest_volume, confidence, recommendation

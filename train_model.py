@@ -1,175 +1,133 @@
 import pandas as pd
 import numpy as np
 import joblib
-import ta
+import os
+from sklearn.model_selection import StratifiedKFold
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report
-import tensorflow as tf
+from sklearn.metrics import roc_auc_score
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
 from tensorflow.keras.callbacks import EarlyStopping
-import os
-from sklearn.preprocessing import StandardScaler,MinMaxScaler
-from sklearn.metrics import accuracy_score, roc_auc_score
-from sklearn.model_selection import StratifiedKFold
 
-# Load dataset
-data = pd.read_csv("historical_idx_dataset.csv")
-data.columns = data.columns.str.strip()  # penting!
-
-
-# Fitur dan target
+# =======================
+# Configuration
+# =======================
+DATA_PATH = "historical_idx_dataset.csv"
 FEATURES = [
     "RSI", "Stoch", "BB_bbm", "BB_bbh", "BB_bbl", "Volume_Spike",
-    "PER", "PBV", "bandarmology_score",
-    "latest_close", "latest_volume"
+    "PER", "PBV", "bandarmology_score", "latest_close", "latest_volume"
 ]
 TARGET = "target"
-missing = [col for col in FEATURES if col not in data.columns]
-if missing:
-    raise ValueError(f"❌ Kolom berikut hilang dari dataset: {missing}")
-X = data[FEATURES].copy()
-y = data[TARGET]
-X = X.replace([np.inf, -np.inf], np.nan)
-X = X.dropna()
-
-# Sinkronkan y agar panjangnya sama
-y = y.loc[X.index].reset_index(drop=True)
-X = X.reset_index(drop=True)
-
-os.makedirs("models", exist_ok=True)
-# ------------------- StandardScaler  -------------------
-
-print("✅ StandardScaler trained and saved")
-
-# ------------------- MinMaxScaler  -------------------
-
-print("✅ MinMaxScaler trained and saved")
-
-print("📁 Current working directory:", os.getcwd())
-joblib.dump(StandardScaler().fit(X), "models/standard_scaler.pkl")
-joblib.dump(MinMaxScaler().fit(X), "models/minmax_scaler.pkl")
-
-# Stratified K-Fold CV (untuk klasifikasi imbang/tidak imbang)
-skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-
-# === RANDOM FOREST ===
-best_rf_auc = -np.inf
-best_rf_model = None
-rf_model_paths = []
-
-print("\n🎯 Training Random Forest with CV")
-print(f"✅ Data sebelum cleaning: {X.shape}")
-X = X.replace([np.inf, -np.inf], np.nan)
-
-print("🔍 Jumlah NaN per kolom:")
-print(X.isna().sum())
-
-# Solusi: isi NaN dengan median
-X = X.fillna(X.median())
-print(f"✅ Data setelah imputasi median: {X.shape}")
-
-# Sinkronisasi y
-y = y.loc[X.index].reset_index(drop=True)
-X = X.reset_index(drop=True)
-
-# Skala
-scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X)
-joblib.dump(scaler, "models/standard_scaler.pkl")
+MODEL_DIR = "models"
 
 
-for i, (train_idx, test_idx) in enumerate(skf.split(X_scaled, y)):
-    X_train, X_test = X_scaled[train_idx], X_scaled[test_idx]
-    y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+# =======================
+# Utility Functions
+# =======================
 
-    model = RandomForestClassifier(n_estimators=100, random_state=i)
-    model.fit(X_train, y_train)
-    prob = model.predict_proba(X_test)[:, 1]
-    auc = roc_auc_score(y_test, prob)
-
-    model_path = f"models/random_forest_fold{i+1}.pkl"
-    print("✅ Selesai melatih model. Model terbaik:", model)
-    print("📊 Skor terbaik:", auc)
-    print("🔍 Model best_rf_model:", best_rf_model)
-
-    joblib.dump(model, model_path)
-    rf_model_paths.append(model_path)
-
-    print(f"🟢 RF Fold {i+1} AUC: {auc:.4f}")
-    if auc > best_rf_auc:
-        best_rf_auc = auc
-        best_rf_model = model
-
-if best_rf_model is not None:
-    joblib.dump(best_rf_model, "models/random_forest_model.pkl")
-    print("✅ File random_forest_model.pkl berhasil disimpan")
-else:
-    print("❌ Model Random Forest tidak terbentuk!")
-
-if os.path.exists("models/random_forest_model.pkl"):
-    print("✅ File random_forest_model.pkl berhasil disimpan")
-else:
-    print("❌ Gagal menyimpan random_forest_model.pkl")
+def load_data(path):
+    df = pd.read_csv(path)
+    print(f"📥 Loaded dataset with shape: {df.shape}")
+    return df
 
 
-print(f"✅ RF Best AUC: {best_rf_auc:.4f}")
+def preprocess_data(df, features, target):
+    X = df[features].replace([np.inf, -np.inf], np.nan)
+    
+    print("🔍 Missing values before cleaning:")
+    print(X.isna().sum())
 
-# === XGBOOST ===
-best_xgb_auc = -np.inf
-best_xgb_model = None
-xgb_model_paths = []
+    X = X.fillna(X.median())
+    y = df[target]
 
-print("\n🎯 Training XGBoost with CV")
-for i, (train_idx, test_idx) in enumerate(skf.split(X_scaled, y)):
-    X_train, X_test = X_scaled[train_idx], X_scaled[test_idx]
-    y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+    X = X.reset_index(drop=True)
+    y = y.loc[X.index].reset_index(drop=True)
 
-    model = XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=i)
-    model.fit(X_train, y_train)
-    prob = model.predict_proba(X_test)[:, 1]
-    auc = roc_auc_score(y_test, prob)
+    if X.shape[0] == 0:
+        raise ValueError("❌ Semua baris terhapus setelah cleaning! Dataset kosong.")
 
-    model_path = f"models/xgboost_fold{i+1}.pkl"
-    joblib.dump(model, model_path)
-    xgb_model_paths.append(model_path)
+    return X, y
 
-    print(f"🟠 XGB Fold {i+1} AUC: {auc:.4f}")
-    if auc > best_xgb_auc:
-        best_xgb_auc = auc
-        best_xgb_model = model
 
-joblib.dump(best_xgb_model, "models/xgboost_model.pkl")
-print(f"✅ XGB Best AUC: {best_xgb_auc:.4f}")
+def train_and_save_scalers(X):
+    os.makedirs(MODEL_DIR, exist_ok=True)
 
-# === LSTM ===
-print("\n🎯 Training LSTM")
-X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
-X_train_lstm = np.expand_dims(X_train, axis=1)
-X_test_lstm = np.expand_dims(X_test, axis=1)
+    std_scaler = StandardScaler()
+    minmax_scaler = MinMaxScaler()
 
-lstm_model = Sequential([
-    LSTM(64, input_shape=(1, X_train.shape[1]), activation='relu'),
-    Dense(1, activation='sigmoid')
-])
-lstm_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-lstm_model.fit(X_train_lstm, y_train, epochs=10, batch_size=32, validation_data=(X_test_lstm, y_test))
-lstm_model.save("models/lstm_model.h5")
-print("✅ LSTM saved.")
+    joblib.dump(std_scaler.fit(X), os.path.join(MODEL_DIR, "standard_scaler.pkl"))
+    print("✅ StandardScaler trained and saved")
 
-# === Simpan path semua model fold ===
-with open("models/rf_model_folds.txt", "w") as f:
-    f.write("\n".join(rf_model_paths))
+    joblib.dump(minmax_scaler.fit(X), os.path.join(MODEL_DIR, "minmax_scaler.pkl"))
+    print("✅ MinMaxScaler trained and saved")
 
-with open("models/xgb_model_folds.txt", "w") as f:
-    f.write("\n".join(xgb_model_paths))
 
-print("\n📊 Evaluasi Akhir:")
-y_pred = best_rf_model.predict(X_scaled)
-print("Random Forest Classification Report:")
-print(classification_report(y, y_pred))
+def train_and_save_models(X, y):
+    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    
+    rf_auc_scores = []
+    xgb_auc_scores = []
 
-print("✅ Model retrained and saved successfully.")
-print("📁 Cek isi folder models setelah training:", os.listdir("models"))
+    for fold, (train_idx, val_idx) in enumerate(skf.split(X, y)):
+        print(f"\n🔄 Fold {fold + 1}")
+
+        X_train, X_val = X.iloc[train_idx], X.iloc[val_idx]
+        y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
+
+        # Random Forest
+        rf = RandomForestClassifier(random_state=42)
+        rf.fit(X_train, y_train)
+        rf_pred = rf.predict_proba(X_val)[:, 1]
+        rf_auc = roc_auc_score(y_val, rf_pred)
+        rf_auc_scores.append(rf_auc)
+        print(f"🌲 RandomForest AUC: {rf_auc:.4f}")
+
+        # XGBoost
+        xgb = XGBClassifier(use_label_encoder=False, eval_metric="logloss")
+        xgb.fit(X_train, y_train)
+        xgb_pred = xgb.predict_proba(X_val)[:, 1]
+        xgb_auc = roc_auc_score(y_val, xgb_pred)
+        xgb_auc_scores.append(xgb_auc)
+        print(f"⚡ XGBoost AUC: {xgb_auc:.4f}")
+
+    # Train final models on all data
+    rf_final = RandomForestClassifier(random_state=42)
+    rf_final.fit(X, y)
+    joblib.dump(rf_final, os.path.join(MODEL_DIR, "rf_model.pkl"))
+    print("✅ RandomForest model saved")
+
+    xgb_final = XGBClassifier(use_label_encoder=False, eval_metric="logloss")
+    xgb_final.fit(X, y)
+    joblib.dump(xgb_final, os.path.join(MODEL_DIR, "xgb_model.pkl"))
+    print("✅ XGBoost model saved")
+
+    # Train LSTM model
+    X_lstm = np.array(X).reshape((X.shape[0], 1, X.shape[1]))
+    model = Sequential()
+    model.add(LSTM(64, input_shape=(X_lstm.shape[1], X_lstm.shape[2]), return_sequences=False))
+    model.add(Dropout(0.3))
+    model.add(Dense(1, activation="sigmoid"))
+    model.compile(loss="binary_crossentropy", optimizer="adam", metrics=["AUC"])
+
+    early_stop = EarlyStopping(monitor="val_loss", patience=5, restore_best_weights=True)
+    model.fit(X_lstm, y, epochs=50, batch_size=16, validation_split=0.2, callbacks=[early_stop], verbose=1)
+
+    model.save(os.path.join(MODEL_DIR, "lstm_model.h5"))
+    print("✅ LSTM model saved")
+
+
+# =======================
+# Main Pipeline
+# =======================
+
+if __name__ == "__main__":
+    print(f"📁 Current working directory: {os.getcwd()}")
+    
+    df = load_data(DATA_PATH)
+    X, y = preprocess_data(df, FEATURES, TARGET)
+    train_and_save_scalers(X)
+    train_and_save_models(X, y)
+
+    print("\n🎉 All models trained and saved successfully!")
