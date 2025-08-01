@@ -53,7 +53,7 @@ if __name__ == "__main__":
     df = fetch_yfinance_data(TICKERS)
 
     if not df.empty:
-        df.to_csv("latest_realtime_data.csv", index=False)
-        print("✅ latest_realtime_data.csv berhasil disimpan.")
+        df.to_csv("historical_idx_dataset.csv", index=False)
+        print("✅ historical_idx_dataset.csv berhasil disimpan.")
     else:
         print("⚠️ Tidak ada data yang berhasil diambil.")
