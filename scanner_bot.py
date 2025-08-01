@@ -2,7 +2,7 @@ import pandas as pd
 import os
 
 from utils import (
-    load_dataset,
+    load_data,
     preprocess_features,
     load_models,
     predict_hybrid_model,
@@ -25,7 +25,7 @@ TARGET = "target"
 # ========== MAIN ==========
 def main():
     # Load dataset & technical indicators
-    df = load_dataset(DATA_PATH)
+    df = load_data(DATA_PATH)
     df = calculate_technical_indicators(df)
 
     # Preprocess features

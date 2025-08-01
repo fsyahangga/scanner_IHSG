@@ -4,7 +4,7 @@ import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 
 from utils import (
-    load_dataset,
+    load_data,
     preprocess_features,
     save_scalers,
     train_model_rf,
@@ -32,7 +32,7 @@ def main():
     print(f"📁 Current working directory: {os.getcwd()}")
 
     # Load & preprocess
-    df = load_dataset(DATA_PATH)
+    df = load_data(DATA_PATH)
     X, y = preprocess_features(df, FEATURES, TARGET)
 
     # Save scalers

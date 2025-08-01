@@ -28,6 +28,7 @@ def send_all_signals():
                     f"  💹 RSI: {row['RSI']:.2f} | 🔍 Stoch: {row['Stoch']:.2f}\n"
                     f"  💼 PER: {row['PER']:.2f} | 📚 PBV: {row['PBV']:.2f}\n"
                     f"  🧠 Bandarmology: {row['Bandarmology_Score']:.2f} | 🌏 Macro: {row['macro_sentiment']:.2f}\n"
+                    f"  📊 Candlestick Pattern: {row['candlestick_pattern']} \n"
                     f"  💰 Close: {row['latest_close']:,} | Vol: {row['latest_volume']:,}\n"
                     f"  🔎 Confidence: {row['confidence']:.2%}\n\n"
                 )
