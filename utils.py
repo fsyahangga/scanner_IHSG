@@ -42,6 +42,36 @@ def calculate_bandarmology_score(ticker):
 # ---------------------------
 # Macro Sentiment (Static/Mocked)
 # ---------------------------
+def calculate_macro_sentiment(bi_rate, inflation, usd_idr, pmi, cpi):
+    score = 0
+    
+    if bi_rate <= 6:
+        score += 0.2
+    else:
+        score -= 0.2
+
+    if inflation < 3.5:
+        score += 0.2
+    else:
+        score -= 0.2
+
+    if usd_idr < 15500:
+        score += 0.2
+    else:
+        score -= 0.2
+
+    if pmi >= 50:
+        score += 0.2
+    else:
+        score -= 0.2
+
+    if cpi <= 3:
+        score += 0.2
+    else:
+        score -= 0.2
+
+    return round(score, 2)
+
 def calculate_foreign_flow(buy_foreign, sell_foreign):
     try:
         net = buy_foreign - sell_foreign
