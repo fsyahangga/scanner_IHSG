@@ -32,18 +32,20 @@ if missing:
     raise ValueError(f"❌ Kolom berikut hilang dari dataset: {missing}")
 X = data[FEATURES].copy()
 y = data[TARGET]
+X = X.replace([np.inf, -np.inf], np.nan)
+X = X.dropna()
+
+# Sinkronkan y agar panjangnya sama
+y = y.loc[X.index].reset_index(drop=True)
+X = X.reset_index(drop=True)
+
 os.makedirs("models", exist_ok=True)
 # ------------------- StandardScaler  -------------------
-# scaler = StandardScaler()
-# X_scaled = scaler.fit_transform(X)
-# joblib.dump(scaler, "models/feature_scaler.pkl")
+
 print("✅ StandardScaler trained and saved")
 
 # ------------------- MinMaxScaler  -------------------
-# scaler = MinMaxScaler()
-# X_scaled = scaler.fit_transform(X)
-# Simpan scaler untuk inference
-# joblib.dump(scaler, "models/feature_scaler.pkl")
+
 print("✅ MinMaxScaler trained and saved")
 
 print("📁 Current working directory:", os.getcwd())
@@ -59,8 +61,12 @@ best_rf_model = None
 rf_model_paths = []
 
 print("\n🎯 Training Random Forest with CV")
-for i, (train_idx, test_idx) in enumerate(skf.split(StandardScaler().fit(X), y)):
-    X_train, X_test = StandardScaler().fit(X)[train_idx], StandardScaler().fit(X)[test_idx]
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+joblib.dump(scaler, "models/standard_scaler.pkl")
+
+for i, (train_idx, test_idx) in enumerate(skf.split(X_scaled, y)):
+    X_train, X_test = X_scaled[train_idx], X_scaled[test_idx]
     y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
 
     model = RandomForestClassifier(n_estimators=100, random_state=i)
