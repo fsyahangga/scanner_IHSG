@@ -10,16 +10,23 @@ import joblib
 
 def calculate_indicators(df):
     df.columns = df.columns.str.lower()  # normalize column names
+
+    # Ensure required columns exist
+    required_cols = ['close', 'high', 'low', 'volume']
+    for col in required_cols:
+        if col not in df.columns:
+            raise ValueError(f"Missing required column: {col}")
+
     df['RSI'] = ta.momentum.RSIIndicator(close=df['close']).rsi()
     df['Stoch'] = ta.momentum.StochasticOscillator(high=df['high'], low=df['low'], close=df['close']).stoch()
-    
+
     bb = ta.volatility.BollingerBands(close=df['close'])
     df['BB_bbm'] = bb.bollinger_mavg()
     df['BB_bbh'] = bb.bollinger_hband()
     df['BB_bbl'] = bb.bollinger_lband()
-    
+
     df['Volume_Spike'] = df['volume'] > df['volume'].rolling(window=20).mean() * 1.5
-    
+
     return df
 
 # ---------------------------
@@ -43,9 +50,10 @@ def calculate_bandarmology_score(ticker):
 # ---------------------------
 # Macro Sentiment (Static/Mocked)
 # ---------------------------
+
 def calculate_macro_sentiment(bi_rate, inflation, usd_idr, pmi, cpi):
     score = 0
-    
+
     if bi_rate <= 6:
         score += 0.2
     else:
@@ -96,10 +104,9 @@ def get_foreign_flow_data(ticker):
     sample_data = {
         "BBRI.JK": (1_200_000_000, 600_000_000),
         "BBCA.JK": (800_000_000, 700_000_000),
-        # ...
+        # Tambahkan ticker lainnya sesuai kebutuhan
     }
     return calculate_foreign_flow(*sample_data.get(ticker, (0, 0)))
-
 
 # ---------------------------
 # Candlestick Pattern Detection (Simple)
