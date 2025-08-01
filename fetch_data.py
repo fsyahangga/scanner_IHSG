@@ -6,6 +6,8 @@ from utils import(
     get_foreign_flow_data,
     get_macro_sentiment
 )
+from dotenv import load_dotenv
+load_dotenv()
 
 # List ticker IDX yang ingin dipantau (ganti sesuai kebutuhan)
 TICKERS = os.getenv("FILTER_TICKER")
