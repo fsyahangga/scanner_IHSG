@@ -9,6 +9,7 @@ import joblib
 # ---------------------------
 
 def calculate_indicators(df):
+    df.columns = df.columns.str.lower()  # normalize column names
     df['RSI'] = ta.momentum.RSIIndicator(close=df['close']).rsi()
     df['Stoch'] = ta.momentum.StochasticOscillator(high=df['high'], low=df['low'], close=df['close']).stoch()
     

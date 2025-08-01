@@ -38,7 +38,7 @@ def fetch_yfinance_data(tickers):
                 'latest_volume': latest['Volume'],
                 'PER': info.get('trailingPE', 0),
                 'PBV': info.get('priceToBook', 0),
-                'Foreign_Buy_Ratio': 0.5,  # Dummy, nanti isi via RTI/EDA
+                'Foreign_Buy_Ratio': foreign_ratio,  # Dummy, nanti isi via RTI/EDA
                 'bandarmology_score': 0,   # Dummy, nanti isi via RTI broker summary
                 'macro_sentiment': macro_sentiment,    # Dummy, nanti isi via BI/inflasi
                 'candlestick_pattern': '', # Akan dihitung ulang di scanner
