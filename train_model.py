@@ -6,21 +6,44 @@ from sklearn.metrics import roc_auc_score
 from utils import calculate_indicators, scale_features, save_model_and_scaler
 
 # ------------------------------
-# Load & Preprocess Dataset
+# Load Datasets
 # ------------------------------
-df = pd.read_csv("latest_realtime_data.csv")
+historical_df = pd.read_csv("historical_idx_dataset.csv")
+latest_df = pd.read_csv("latest_realtime_data.csv")
 
-# Drop NaN rows (after indicator calculation)
-df = calculate_indicators(df)
-df.dropna(inplace=True)
+# ------------------------------
+# Preprocess latest real-time data
+# ------------------------------
+latest_df = calculate_indicators(latest_df)
+latest_df.dropna(inplace=True)
+
+# Pastikan struktur kolom latest_df sesuai historical
+latest_df = latest_df[[
+    'ticker', 'RSI', 'Stoch', 'BB_bbm', 'BB_bbh', 'BB_bbl',
+    'volume', 'PER', 'PBV', 'bandarmology_score', 'close', 'target'
+]]
+latest_df.columns = [
+    'ticker', 'RSI', 'Stoch', 'BB_bbm', 'BB_bbh', 'BB_bbl',
+    'latest_volume', 'PER', 'PBV', 'bandarmology_score', 'latest_close', 'target'
+]
+
+# Gabungkan dua dataset
+combined_df = pd.concat([historical_df, latest_df], ignore_index=True)
 
 # ------------------------------
 # Feature & Target Selection
 # ------------------------------
-features = ['RSI', 'Stoch', 'BB_bbm', 'BB_bbh', 'BB_bbl', 'Volume_Spike']
-X = df[features].copy()
-X['Volume_Spike'] = X['Volume_Spike'].astype(int)  # boolean to int
-y = df['target']
+features = [
+    'RSI', 'Stoch', 'BB_bbm', 'BB_bbh', 'BB_bbl', 'Volume_Spike',
+    'PER', 'PBV', 'bandarmology_score', 'latest_close', 'latest_volume'
+]
+
+# Jika 'Volume_Spike' belum dihitung di latest_df, hitung berdasarkan threshold
+if 'Volume_Spike' not in combined_df.columns:
+    combined_df['Volume_Spike'] = (combined_df['latest_volume'] > combined_df['latest_volume'].rolling(5).mean()).astype(int)
+
+X = combined_df[features].copy()
+y = combined_df['target'].astype(int)
 
 # ------------------------------
 # Scaling
