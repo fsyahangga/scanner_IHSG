@@ -1,106 +1,121 @@
 import pandas as pd
 import numpy as np
-import talib
 import joblib
-from sklearn.preprocessing import StandardScaler
-from keras.models import load_model
 import os
+import logging
 
-def ensure_dir_exists(path):
-    if not os.path.exists(path):
-        os.makedirs(path)
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score
 
-# ===============================
-# 1. Technical Indicators
-# ===============================
-def calculate_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
-    df["RSI"] = talib.RSI(df["close"], timeperiod=14)
-    slowk, slowd = talib.STOCH(df["high"], df["low"], df["close"])
-    df["Stoch"] = slowk
-    upper, middle, lower = talib.BBANDS(df["close"], timeperiod=20)
-    df["BB_bbh"] = upper
-    df["BB_bbm"] = middle
-    df["BB_bbl"] = lower
+# Logging setup
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 
-    df["Volume_Spike"] = df["volume"] / df["volume"].rolling(20).mean()
-    df["Volume_Spike"] = df["Volume_Spike"].replace([np.inf, -np.inf], 0).fillna(0)
+def log(message):
+    logging.info(message)
 
-    return df
-
-
-# ===============================
-# 2. Candlestick Pattern Detection
-# ===============================
-def detect_candlestick_patterns(df: pd.DataFrame) -> pd.DataFrame:
-    patterns = {
-        "Hammer": talib.CDLHAMMER,
-        "ShootingStar": talib.CDLSHOOTINGSTAR,
-        "MorningStar": talib.CDLMORNINGSTAR,
-        "EveningStar": talib.CDLEVENINGSTAR,
-        "Doji": talib.CDLDOJI
-    }
-
-    for name, func in patterns.items():
-        df[name] = func(df["open"], df["high"], df["low"], df["close"])
-
-    return df
-
-
-# ===============================
-# 3. Dummy Macro Sentiment Score
-# ===============================
-def get_macro_sentiment(bi_rate: float, inflation: float, usd_idr: float) -> float:
-    score = 1.0
-    if bi_rate > 6.5: score -= 0.3
-    if inflation > 4.0: score -= 0.3
-    if usd_idr > 16000: score -= 0.4
-    return max(0.0, min(score, 1.0))
-
-
-# ===============================
-# 4. Dummy Bandarmology Score
-# ===============================
-def calculate_bandarmology_score(df: pd.DataFrame) -> pd.DataFrame:
-    buy_vol = df.get("top_broker_buy_volume", pd.Series(0))
-    sell_vol = df.get("top_broker_sell_volume", pd.Series(1))
-    net_buy = buy_vol - sell_vol
-    df["Bandarmology_Score"] = (net_buy / (sell_vol + 1)).replace([np.inf, -np.inf], 0).fillna(0)
-    return df
-
-
-# ===============================
-# 5. Load Model & Scaler
-# ===============================
-def load_model_and_scaler():
+def load_model(path):
     try:
-        model = joblib.load("models/random_forest_model.pkl")
-        scaler = joblib.load("models/random_forest_scaler.pkl")
-    except Exception:
-        # fallback to hybrid keras if needed
-        model = load_model("models/hybrid_lstm_model.h5")
-        scaler = joblib.load("models/hybrid_lstm_scaler.pkl")
-    return model, scaler
+        return joblib.load(path)
+    except Exception as e:
+        log(f"Gagal load model: {path} | Error: {e}")
+        return None
 
+def load_scaler(path):
+    try:
+        return joblib.load(path)
+    except Exception as e:
+        log(f"Gagal load scaler: {path} | Error: {e}")
+        return None
 
-# ===============================
-# 6. Prediction Function
-# ===============================
-def make_prediction(model, scaler, df_input: pd.DataFrame):
-    FEATURES = [
-        "RSI", "Stoch", "BB_bbm", "BB_bbh", "BB_bbl",
-        "Volume_Spike", "PER", "PBV", "Bandarmology_Score",
-        "latest_close", "latest_volume", "macro_sentiment"
+def save_predictions(df, filename="buy_signals.csv"):
+    try:
+        df.to_csv(filename, index=False)
+        log(f"📥 Data hasil prediksi disimpan ke {filename}")
+    except Exception as e:
+        log(f"❌ Gagal simpan hasil prediksi: {e}")
+
+def scale_data(X, scaling_type="standard"):
+    scaler_path = "models/standard_scaler.pkl" if scaling_type == "standard" else "models/minmax_scaler.pkl"
+    scaler = load_scaler(scaler_path)
+    return scaler.transform(X) if scaler else X
+
+def extract_and_scale_features(df, feature_columns, scaling_type="standard"):
+    try:
+        X = df[feature_columns].copy()
+        X_scaled = scale_data(X, scaling_type)
+        return X_scaled
+    except Exception as e:
+        log(f"❌ Gagal ekstrak dan scaling fitur: {e}")
+        return None
+
+def predict_with_models(X, models):
+    results = {}
+    for name, model in models.items():
+        try:
+            prob = model.predict_proba(X)[:, 1] if hasattr(model, "predict_proba") else model.predict(X)
+            results[name] = prob
+        except Exception as e:
+            log(f"❌ Gagal prediksi dengan model {name}: {e}")
+            results[name] = np.zeros(len(X))
+    return results
+
+def majority_vote(predictions_dict, threshold=0.5):
+    votes = pd.DataFrame(predictions_dict)
+    votes["average"] = votes.mean(axis=1)
+    conditions = [
+        (votes["average"] >= threshold + 0.1),
+        (votes["average"] <= threshold - 0.1)
     ]
+    choices = ["BUY", "SELL"]
+    votes["recommendation"] = np.select(conditions, choices, default="NEUTRAL")
+    return votes["recommendation"]
 
-    X = df_input[FEATURES].fillna(0).copy()
-    X_scaled = scaler.transform(X)
+def evaluate_model(model, X_val, y_val):
+    try:
+        preds = model.predict(X_val)
+        report = classification_report(y_val, preds)
+        matrix = confusion_matrix(y_val, preds)
+        auc = roc_auc_score(y_val, model.predict_proba(X_val)[:, 1]) if hasattr(model, "predict_proba") else "N/A"
+        log(f"Classification Report:\n{report}")
+        log(f"Confusion Matrix:\n{matrix}")
+        log(f"AUC: {auc}")
+    except Exception as e:
+        log(f"❌ Gagal evaluasi model: {e}")
 
-    if hasattr(model, "predict_proba"):
-        proba = model.predict_proba(X_scaled)[0][1]
-        pred = model.predict(X_scaled)[0]
-    else:
-        # Assume it's a keras model
-        proba = model.predict(X_scaled, verbose=0)[0][0]
-        pred = int(proba > 0.5)
+def load_data(path="historical_idx_dataset.csv"):
+    try:
+        return pd.read_csv(path)
+    except Exception as e:
+        log(f"❌ Gagal load data: {e}")
+        return pd.DataFrame()
 
-    return proba, pred
+def clean_data(df):
+    return df.dropna().copy() if not df.empty else df
+
+def prepare_input_features(df, feature_columns, scaling_type="standard"):
+    df = clean_data(df)
+    return extract_and_scale_features(df, feature_columns, scaling_type) if not df.empty else None
+
+def get_target_labels(df, target_column="target"):
+    return df[target_column].values if target_column in df.columns else None
+
+def save_model(model, filename):
+    try:
+        joblib.dump(model, filename)
+        log(f"✅ Model disimpan: {filename}")
+    except Exception as e:
+        log(f"❌ Gagal simpan model: {e}")
+        
+def detect_candlestick_pattern(df):
+    # Contoh sederhana (bisa diganti dengan TA-Lib)
+    patterns = []
+    for _, row in df.iterrows():
+        if row['RSI'] < 30 and row['Stoch'] < 20:
+            patterns.append("Hammer")
+        else:
+            patterns.append("NoPattern")
+    return patterns
+
+def get_macro_sentiment():
+    # Placeholder: bisa dari API atau input manual/data historis
+    return "POSITIVE"  # atau bisa random / dari CSV makro

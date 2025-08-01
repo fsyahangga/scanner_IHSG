@@ -1,1 +1,1 @@
-ticker, RSI, Stoch, PER, PBV, Bandarmology_Score, macro_sentiment,latest_close, latest_volume, confidence, recommendation
+ticker,RSI,Stoch,BB_bbm,BB_bbh,BB_bbl,Volume_Spike,PER,PBV,bandarmology_score,latest_close,latest_volume,Foreign_Buy_Ratio,macro_sentiment,candlestick_pattern,pred_proba,signal
