@@ -1,78 +1,53 @@
-import os
-import numpy as np
 import pandas as pd
+import numpy as np
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import StratifiedKFold
+from sklearn.metrics import roc_auc_score
+from utils import calculate_indicators, scale_features, save_model_and_scaler
 
-from utils import (
-    load_data,
-    preprocess_features,
-    save_scalers,
-    train_model_rf,
-    train_model_xgb,
-    train_model_lstm,
-    evaluate_model,
-    save_model
-)
+# ------------------------------
+# Load & Preprocess Dataset
+# ------------------------------
+df = pd.read_csv("historical_idx_dataset.csv")
 
-# ===============================
-# CONFIG
-# ===============================
-DATA_PATH = "historical_idx_dataset.csv"
-MODEL_DIR = "models"
-FEATURES = [
-    "RSI", "Stoch", "BB_bbm", "BB_bbh", "BB_bbl", "Volume_Spike",
-    "PER", "PBV", "bandarmology_score", "latest_close", "latest_volume"
-]
-TARGET = "target"
+# Drop NaN rows (after indicator calculation)
+df = calculate_indicators(df)
+df.dropna(inplace=True)
 
-# ===============================
-# MAIN TRAINING PIPELINE
-# ===============================
-def main():
-    print(f"📁 Current working directory: {os.getcwd()}")
+# ------------------------------
+# Feature & Target Selection
+# ------------------------------
+features = ['RSI', 'Stoch', 'BB_bbm', 'BB_bbh', 'BB_bbl', 'Volume_Spike']
+X = df[features].copy()
+X['Volume_Spike'] = X['Volume_Spike'].astype(int)  # boolean to int
+y = df['target']
 
-    # Load & preprocess
-    df = load_data(DATA_PATH)
-    X, y = preprocess_features(df, FEATURES, TARGET)
+# ------------------------------
+# Scaling
+# ------------------------------
+X_scaled, scaler = scale_features(X, method='standard')
 
-    # Save scalers
-    save_scalers(X, MODEL_DIR)
+# ------------------------------
+# Model Training with Stratified K-Fold
+# ------------------------------
+model = RandomForestClassifier(n_estimators=100, random_state=42)
+kfold = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
-    # Stratified K-Fold
-    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-    rf_scores, xgb_scores = [], []
+auc_scores = []
+for train_idx, val_idx in kfold.split(X_scaled, y):
+    X_train, X_val = X_scaled[train_idx], X_scaled[val_idx]
+    y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
+    
+    model.fit(X_train, y_train)
+    y_pred_proba = model.predict_proba(X_val)[:, 1]
+    auc = roc_auc_score(y_val, y_pred_proba)
+    auc_scores.append(auc)
 
-    for fold, (train_idx, val_idx) in enumerate(skf.split(X, y)):
-        print(f"\n🔁 Fold {fold+1}/5")
+print(f"✅ AUC scores (5-fold): {auc_scores}")
+print(f"📊 Mean AUC: {np.mean(auc_scores):.4f}")
 
-        X_train, X_val = X.iloc[train_idx], X.iloc[val_idx]
-        y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
-
-        # Train RF & XGB
-        rf_model = train_model_rf(X_train, y_train)
-        rf_score = evaluate_model(rf_model, X_val, y_val)
-        rf_scores.append(rf_score)
-
-        xgb_model = train_model_xgb(X_train, y_train)
-        xgb_score = evaluate_model(xgb_model, X_val, y_val)
-        xgb_scores.append(xgb_score)
-
-    print("\n📊 Cross-Validation Summary:")
-    print(f"🌲 Random Forest AUC: Mean={np.mean(rf_scores):.4f} | Std={np.std(rf_scores):.4f}")
-    print(f"⚡ XGBoost AUC       : Mean={np.mean(xgb_scores):.4f} | Std={np.std(xgb_scores):.4f}")
-
-    # Final training on full data
-    rf_final = train_model_rf(X, y)
-    save_model(rf_final, "rf_model.pkl", MODEL_DIR)
-
-    xgb_final = train_model_xgb(X, y)
-    save_model(xgb_final, "xgb_model.pkl", MODEL_DIR)
-
-    lstm_final = train_model_lstm(X, y)
-    save_model(lstm_final, "lstm_model.h5", MODEL_DIR)
-
-    print("\n✅ All models trained and saved successfully!")
-
-
-if __name__ == "__main__":
-    main()
+# ------------------------------
+# Save Model and Scaler
+# ------------------------------
+save_model_and_scaler(model, scaler, name_prefix="rf")
+print("💾 Model & scaler saved to: models/rf_model.pkl and rf_scaler.pkl")

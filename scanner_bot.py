@@ -1,56 +1,68 @@
 import pandas as pd
-import os
-
 from utils import (
-    load_data,
-    preprocess_features,
-    load_models,
-    predict_hybrid_model,
-    calculate_technical_indicators,
-    get_macro_sentiment,
-    detect_candlestick_pattern,
-    classify_signal
+    calculate_indicators,
+    scale_features,
+    load_model_and_scaler,
+    generate_recommendation,
+    save_buy_signals
 )
 
-# ========== CONFIG ==========
-DATA_PATH = "historical_idx_dataset.csv"
-MODEL_DIR = "models"
-OUTPUT_CSV = "buy_signals.csv"
-FEATURES = [
-    "RSI", "Stoch", "BB_bbm", "BB_bbh", "BB_bbl", "Volume_Spike",
-    "PER", "PBV", "bandarmology_score", "latest_close", "latest_volume"
+# ------------------------------
+# Load model dan scaler
+# ------------------------------
+model, scaler = load_model_and_scaler("rf")
+
+# ------------------------------
+# Load latest/realtime data
+# ------------------------------
+df = pd.read_csv("latest_realtime_data.csv")
+
+if 'ticker' not in df.columns:
+    raise ValueError("Kolom 'ticker' wajib ada di file input!")
+
+# ------------------------------
+# Hitung indikator teknikal
+# ------------------------------
+df = calculate_indicators(df)
+df.dropna(inplace=True)
+
+# ------------------------------
+# Pilih fitur model dan kolom tambahan
+# ------------------------------
+model_features = ['RSI', 'Stoch', 'BB_bbm', 'BB_bbh', 'BB_bbl', 'Volume_Spike']
+extra_columns = [
+    'ticker', 'PER', 'PBV', 'bandarmology_score', 'latest_close', 'latest_volume',
+    'Foreign_Buy_Ratio', 'macro_sentiment', 'candlestick_pattern'
 ]
-TARGET = "target"
 
-# ========== MAIN ==========
-def main():
-    # Load dataset & technical indicators
-    df = load_data(DATA_PATH)
-    df = calculate_technical_indicators(df)
+# Cek dan isi missing columns jika perlu
+for col in extra_columns:
+    if col not in df.columns:
+        df[col] = 0  # atau np.nan / default value
 
-    # Preprocess features
-    X, _ = preprocess_features(df, FEATURES, target_column=None)
+# ------------------------------
+# Preprocessing dan prediksi
+# ------------------------------
+X = df[model_features].copy()
+X['Volume_Spike'] = X['Volume_Spike'].astype(int)
 
-    # Load models
-    rf_model, xgb_model, lstm_model = load_models(MODEL_DIR)
+X_scaled, _ = scale_features(X, method='standard', scaler=scaler)
 
-    # Predict
-    df["pred_proba"] = predict_hybrid_model(rf_model, xgb_model, lstm_model, X)
-    df["macro_sentiment"] = get_macro_sentiment()
-    df["candlestick_pattern"] = detect_candlestick_pattern(df)
-    df["signal"] = df["pred_proba"].apply(classify_signal)
-    
-    # Simpan hasil untuk broadcast
-    columns_to_save = [
-        "ticker", "RSI", "Stoch", "BB_bbm", "BB_bbh", "BB_bbl",
-        "Volume_Spike", "PER", "PBV", "bandarmology_score",
-        "latest_close", "latest_volume", "Foreign_Buy_Ratio",
-        "macro_sentiment", "candlestick_pattern",
-        "pred_proba", "signal"
-    ]
-    df[columns_to_save].to_csv(OUTPUT_CSV, index=False)
-    print(f"✅ Scanner selesai. Output tersimpan di: {OUTPUT_CSV}")
+df['prediction'] = model.predict(X_scaled)
+df['probability'] = model.predict_proba(X_scaled)[:, 1]
+df['recommendation'] = df['prediction'].apply(generate_recommendation)
 
+# ------------------------------
+# Output dan simpan
+# ------------------------------
+cols_output = extra_columns + model_features + ['probability', 'recommendation']
+output_df = df[cols_output]
 
-if __name__ == "__main__":
-    main()
+save_buy_signals(output_df, output_path="buy_signals.csv")
+
+# ------------------------------
+# Tampilkan hasil
+# ------------------------------
+print("✅ Selesai. Rekomendasi disimpan ke buy_signals.csv\n")
+print(output_df[['ticker', 'RSI', 'Stoch', 'PER', 'PBV', 'bandarmology_score',
+                 'Foreign_Buy_Ratio', 'macro_sentiment', 'candlestick_pattern', 'recommendation']])
