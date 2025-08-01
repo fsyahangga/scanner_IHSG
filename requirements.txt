@@ -1,5 +1,6 @@
 yfinance
 ta
+talib
 pandas
 scikit-learn
 python-telegram-bot==13.15
