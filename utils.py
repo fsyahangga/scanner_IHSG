@@ -3,58 +3,53 @@ import numpy as np
 import ta
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 import joblib
-import talib
-
-# ---------------------------
-# Technical Indicator Section
-
+from ta.momentum import RSIIndicator, StochasticOscillator
+from ta.volatility import BollingerBands
 
 def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Menghitung indikator teknikal berdasarkan dataframe OHLCV dan menambahkan kolom baru.
-    Input: df - DataFrame dengan kolom ['ticker','date','open','high','low','close','volume',...]
+    Menghitung indikator teknikal menggunakan pustaka `ta` berdasarkan dataframe OHLCV.
+    Input: df - DataFrame dengan kolom ['ticker','date','open','high','low','close','volume']
     Output: df - DataFrame dengan kolom tambahan indikator teknikal.
     """
     df = df.copy()
     
-    # Urutkan berdasarkan ticker dan date agar perhitungan indikator konsisten
+    # Format dan sort data
     df['date'] = pd.to_datetime(df['date'])
     df.sort_values(['ticker', 'date'], inplace=True)
 
-    # Hitung indikator per ticker
     result = []
     for ticker, group in df.groupby('ticker'):
         group = group.copy()
 
         # RSI
-        group['RSI'] = talib.RSI(group['close'], timeperiod=14)
+        group['RSI'] = RSIIndicator(close=group['close'], window=14).rsi()
 
         # Stochastic Oscillator
-        slowk, slowd = talib.STOCH(group['high'], group['low'], group['close'])
-        group['Stoch'] = slowk
+        stoch = StochasticOscillator(high=group['high'], low=group['low'], close=group['close'], window=14, smooth_window=3)
+        group['Stoch'] = stoch.stoch()
 
         # Bollinger Bands
-        upper, middle, lower = talib.BBANDS(group['close'], timeperiod=20, nbdevup=2, nbdevdn=2)
-        group['BB_bbh'] = upper
-        group['BB_bbm'] = middle
-        group['BB_bbl'] = lower
+        bb = BollingerBands(close=group['close'], window=20, window_dev=2)
+        group['BB_bbh'] = bb.bollinger_hband()
+        group['BB_bbm'] = bb.bollinger_mavg()
+        group['BB_bbl'] = bb.bollinger_lband()
 
-        # Volume Spike (boolean, apakah volume hari ini > 1.5x MA20 volume)
+        # Volume Spike (boolean: volume > 1.5x MA20)
         group['vol_ma20'] = group['volume'].rolling(window=20).mean()
         group['Volume_Spike'] = (group['volume'] > 1.5 * group['vol_ma20']).astype(int)
 
-        # Latest close & volume (opsional redundancy untuk historical compatibility)
+        # Redundansi kolom
         group['latest_close'] = group['close']
         group['latest_volume'] = group['volume']
 
         result.append(group)
 
     df_final = pd.concat(result)
-
-    # Drop kolom bantu jika tidak diperlukan
     df_final.drop(columns=['vol_ma20'], inplace=True)
 
     return df_final
+
 
 
 # ---------------------------

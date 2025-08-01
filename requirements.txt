@@ -1,6 +1,5 @@
 yfinance
 ta
-TA-Lib==0.4.0
 pandas
 scikit-learn
 python-telegram-bot==13.15
@@ -9,3 +8,5 @@ requests
 python-dotenv
 tensorflow>=2.10
 xgboost
+matplotlib
+seaborn
