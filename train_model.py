@@ -61,9 +61,25 @@ best_rf_model = None
 rf_model_paths = []
 
 print("\n🎯 Training Random Forest with CV")
+print(f"✅ Data sebelum cleaning: {X.shape}")
+X = X.replace([np.inf, -np.inf], np.nan)
+
+print("🔍 Jumlah NaN per kolom:")
+print(X.isna().sum())
+
+# Solusi: isi NaN dengan median
+X = X.fillna(X.median())
+print(f"✅ Data setelah imputasi median: {X.shape}")
+
+# Sinkronisasi y
+y = y.loc[X.index].reset_index(drop=True)
+X = X.reset_index(drop=True)
+
+# Skala
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
 joblib.dump(scaler, "models/standard_scaler.pkl")
+
 
 for i, (train_idx, test_idx) in enumerate(skf.split(X_scaled, y)):
     X_train, X_test = X_scaled[train_idx], X_scaled[test_idx]
