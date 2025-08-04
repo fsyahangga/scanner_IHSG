@@ -3,7 +3,7 @@ import os
 
 openai.api_key = os.environ["OPENAI_API_KEY"]
 
-with open("your_file.py") as f:  # ganti dengan file aktual
+with open("scanner_IHSG") as f:  # ganti dengan file aktual
     code = f.read()
 
 response = openai.ChatCompletion.create(
