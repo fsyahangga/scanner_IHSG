@@ -47,8 +47,13 @@ def calculate_indicators(df):
     df['RSI'] = ta.rsi(df['close'], length=14)
 
     # Stochastic
-    stoch = ta.stoch(df['high'], df['low'], df['close'])
-    df['Stoch'] = stoch['STOCHk_14_3_3'] if 'STOCHk_14_3_3' in stoch else None
+    stoch = ta.stoch(df['High'], df['Low'], df['Close'])
+
+    if stoch is not None and 'STOCHk_14_3_3' in stoch.columns:
+        df['Stoch'] = stoch['STOCHk_14_3_3']
+    else:
+        df['Stoch'] = None
+
 
     # Bollinger Bands
     bb = ta.bbands(df['close'], length=20)
