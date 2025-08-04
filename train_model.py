@@ -13,7 +13,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
 from tensorflow.keras.callbacks import EarlyStopping
 
-from utils import calculate_indicators, load_latest_data
+from utils import load_latest_data, calculate_indicators
 
 DATA_PATH = 'historical_idx_dataset.csv'
 MODEL_DIR = 'models'
@@ -53,7 +53,7 @@ def preprocess_data(df):
 
     scaler_std = StandardScaler()
     scaler_minmax = MinMaxScaler()
-    
+
     X_scaled_std = scaler_std.fit_transform(X)
     X_scaled_minmax = scaler_minmax.fit_transform(X)
 
@@ -77,8 +77,8 @@ def evaluate_model(model, X, y):
     print(f'Model AUC: {np.mean(scores):.4f}')
 
 def main():
-    df = pd.read_csv(DATA_PATH)
-    df = calculate_indicators(df)
+    df_latest = load_latest_data()
+    df = calculate_indicators(df_latest)
 
     X, y = preprocess_data(df)
 

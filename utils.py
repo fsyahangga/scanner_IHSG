@@ -5,6 +5,35 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 import joblib
 from ta.momentum import RSIIndicator, StochasticOscillator
 from ta.volatility import BollingerBands
+import os
+
+def load_latest_data(path='latest_realtime_data.csv') -> pd.DataFrame:
+    """
+    Memuat dan menghitung ulang indikator teknikal dari file latest_realtime_data.csv
+    """
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"{path} tidak ditemukan.")
+
+    df = pd.read_csv(path)
+
+    # Pastikan kolom wajib ada untuk proses indikator
+    expected_cols = ['ticker', 'date', 'open', 'high', 'low', 'close', 'volume']
+    for col in expected_cols:
+        if col not in df.columns:
+            raise ValueError(f"Kolom wajib '{col}' tidak ada dalam {path}")
+
+    # Hitung ulang indikator teknikal
+    df = calculate_indicators(df)
+
+    # Tambahkan fitur tambahan
+    df['candlestick_pattern'] = detect_candlestick_pattern(df)
+    df['macro_sentiment'] = get_macro_sentiment()
+
+    # Loop untuk foreign flow & bandarmology
+    df['Foreign_Buy_Ratio'] = df['ticker'].apply(lambda x: get_foreign_flow_data(f"{x}.JK")[1])
+    df['bandarmology_score'] = df['ticker'].apply(lambda x: calculate_bandarmology_score(x))
+
+    return df
 
 def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -29,7 +58,7 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
     for col in ['PER', 'PBV', 'bandarmology_score', 'Foreign_Buy_Ratio', 'macro_sentiment', 'candlestick_pattern', 'target']:
         if col not in df.columns:
             df[col] = 0
-            
+
     result = []
     for ticker, group in df.groupby('ticker'):
         group = group.copy()
