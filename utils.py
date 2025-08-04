@@ -169,14 +169,28 @@ def get_foreign_flow_data(ticker):
 
 def detect_candlestick_pattern(df):
     patterns = []
+
     for _, row in df.iterrows():
-        if row['RSI'] < 30 and row['Stoch'] < 20:
-            patterns.append("Hammer")
-        elif row['RSI'] > 70 and row['Stoch'] > 80:
-            patterns.append("Shooting Star")
-        else:
-            patterns.append("NoPattern")
+        pattern = 'None'
+
+        try:
+            # Validasi nilai RSI dan Stoch tidak null sebelum dibandingkan
+            if (
+                pd.notnull(row.get('RSI')) and row['RSI'] < 30 and
+                pd.notnull(row.get('Stoch')) and row['Stoch'] < 20
+            ):
+                if row['close'] > row['open']:
+                    pattern = 'Bullish_Reversal'
+                elif row['close'] < row['open']:
+                    pattern = 'Bearish_Continuation'
+        except Exception as e:
+            pattern = 'Error'
+            logging.warning(f"Error saat deteksi pola candle: {e}")
+
+        patterns.append(pattern)
+
     return patterns
+
 
 # ---------------------------
 # Preprocessing Utilities
