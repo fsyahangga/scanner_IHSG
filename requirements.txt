@@ -10,5 +10,5 @@ tensorflow>=2.10
 xgboost
 matplotlib
 seaborn
-pandas-ta
+pandas-ta==0.3.14b0
 numpy==1.24.4
