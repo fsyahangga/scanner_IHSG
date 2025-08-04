@@ -6,6 +6,9 @@ import joblib
 from ta.momentum import RSIIndicator, StochasticOscillator
 from ta.volatility import BollingerBands
 import os
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 def load_latest_data(path='latest_realtime_data.csv') -> pd.DataFrame:
     """
@@ -65,7 +68,7 @@ def calculate_indicators(df):
         df['BB_bbm'] = None
         df['BB_bbh'] = None
         df['BB_bbl'] = None
-        
+
     macd = ta.macd(df['close'])
     if macd is not None and 'MACD_12_26_9' in macd.columns:
         df['MACD'] = macd['MACD_12_26_9']
