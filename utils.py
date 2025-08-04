@@ -57,9 +57,21 @@ def calculate_indicators(df):
 
     # Bollinger Bands
     bb = ta.bbands(df['close'], length=20)
-    df['BB_bbm'] = bb['BBM_20_2.0'] if 'BBM_20_2.0' in bb else None
-    df['BB_bbh'] = bb['BBU_20_2.0'] if 'BBU_20_2.0' in bb else None
-    df['BB_bbl'] = bb['BBL_20_2.0'] if 'BBL_20_2.0' in bb else None
+    if bb is not None and all(col in bb.columns for col in ['BBM_20_2.0', 'BBU_20_2.0', 'BBL_20_2.0']):
+        df['BB_bbm'] = bb['BBM_20_2.0']
+        df['BB_bbh'] = bb['BBU_20_2.0']
+        df['BB_bbl'] = bb['BBL_20_2.0']
+    else:
+        df['BB_bbm'] = None
+        df['BB_bbh'] = None
+        df['BB_bbl'] = None
+        
+    macd = ta.macd(df['close'])
+    if macd is not None and 'MACD_12_26_9' in macd.columns:
+        df['MACD'] = macd['MACD_12_26_9']
+    else:
+        df['MACD'] = None
+
 
     # Volume spike: volume hari ini vs rata-rata 5 hari sebelumnya
     df['Volume_Spike'] = df['volume'] / df['volume'].rolling(window=5).mean()
