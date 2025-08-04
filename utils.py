@@ -35,61 +35,32 @@ def load_latest_data(path='latest_realtime_data.csv') -> pd.DataFrame:
 
     return df
 
-def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Menghitung indikator teknikal menggunakan pustaka `ta` berdasarkan dataframe OHLCV.
-    Input: df - DataFrame dengan kolom ['ticker','date','open','high','low','close','volume']
-    Output: df - DataFrame dengan kolom tambahan indikator teknikal.
-    """
+def calculate_indicators(df):
+    import pandas_ta as ta
+
+    if not all(col in df.columns for col in ['open', 'high', 'low', 'close', 'volume']):
+        raise ValueError("Missing required OHLCV columns.")
+
     df = df.copy()
-    
-    # Format dan sort data
-    df['date'] = pd.to_datetime(df['date'])
-    df.sort_values(['ticker', 'date'], inplace=True)
-    df['ticker'] = df['ticker'].str.replace('.JK', '', regex=False)
 
-    # Pastikan kolom yang diperlukan ada
-    required_columns = ['ticker', 'RSI', 'Stoch', 'BB_bbm', 'BB_bbh', 'BB_bbl', 'Volume_Spike']
-    missing_cols = [col for col in required_columns if col not in df.columns]
-    if missing_cols:
-        raise ValueError(f"Missing columns in latest_realtime_data.csv: {missing_cols}")
+    # RSI
+    df['RSI'] = ta.rsi(df['close'], length=14)
 
-    # Tambahkan kolom dummy jika tidak ada, untuk kesesuaian dengan training set
-    for col in ['PER', 'PBV', 'bandarmology_score', 'Foreign_Buy_Ratio', 'macro_sentiment', 'candlestick_pattern', 'target']:
-        if col not in df.columns:
-            df[col] = 0
+    # Stochastic
+    stoch = ta.stoch(df['high'], df['low'], df['close'])
+    df['Stoch'] = stoch['STOCHk_14_3_3'] if 'STOCHk_14_3_3' in stoch else None
 
-    result = []
-    for ticker, group in df.groupby('ticker'):
-        group = group.copy()
+    # Bollinger Bands
+    bb = ta.bbands(df['close'], length=20)
+    df['BB_bbm'] = bb['BBM_20_2.0'] if 'BBM_20_2.0' in bb else None
+    df['BB_bbh'] = bb['BBU_20_2.0'] if 'BBU_20_2.0' in bb else None
+    df['BB_bbl'] = bb['BBL_20_2.0'] if 'BBL_20_2.0' in bb else None
 
-        # RSI
-        group['RSI'] = RSIIndicator(close=group['close'], window=14).rsi()
+    # Volume spike: volume hari ini vs rata-rata 5 hari sebelumnya
+    df['Volume_Spike'] = df['volume'] / df['volume'].rolling(window=5).mean()
 
-        # Stochastic Oscillator
-        stoch = StochasticOscillator(high=group['high'], low=group['low'], close=group['close'], window=14, smooth_window=3)
-        group['Stoch'] = stoch.stoch()
+    return df
 
-        # Bollinger Bands
-        bb = BollingerBands(close=group['close'], window=20, window_dev=2)
-        group['BB_bbh'] = bb.bollinger_hband()
-        group['BB_bbm'] = bb.bollinger_mavg()
-        group['BB_bbl'] = bb.bollinger_lband()
-
-        # Volume Spike (boolean: volume > 1.5x MA20)
-        group['vol_ma20'] = group['volume'].rolling(window=20).mean()
-        group['Volume_Spike'] = (group['volume'] > 1.5 * group['vol_ma20']).astype(int)
-
-        # Redundansi kolom
-        group['latest_close'] = group['close']
-        group['latest_volume'] = group['volume']
-
-        result.append(group)
-
-    df_final = pd.concat(result)
-    df_final.drop(columns=['vol_ma20'], inplace=True)
-
-    return df_final
 
 
 
