@@ -1,3 +1,4 @@
+# scanner_bot.py - Versi Stabil dan Terintegrasi
 import pandas as pd
 from utils import (
     calculate_indicators,
@@ -6,6 +7,7 @@ from utils import (
     generate_recommendation,
     save_buy_signals
 )
+import numpy as np
 
 # ------------------------------
 # Load model dan scaler
@@ -20,6 +22,10 @@ df = pd.read_csv("latest_realtime_data.csv")
 if 'ticker' not in df.columns:
     raise ValueError("Kolom 'ticker' wajib ada di file input!")
 
+# Pastikan ticker bersih
+if df['ticker'].str.contains('.JK').any():
+    df['ticker'] = df['ticker'].str.replace('.JK', '', regex=False)
+
 # ------------------------------
 # Hitung indikator teknikal
 # ------------------------------
@@ -27,42 +33,56 @@ df = calculate_indicators(df)
 df.dropna(inplace=True)
 
 # ------------------------------
-# Pilih fitur model dan kolom tambahan
+# Pastikan semua kolom wajib ada
 # ------------------------------
-model_features = ['RSI', 'Stoch', 'BB_bbm', 'BB_bbh', 'BB_bbl', 'Volume_Spike']
+model_features = [
+    'RSI', 'Stoch', 'BB_bbm', 'BB_bbh', 'BB_bbl', 'Volume_Spike',
+    'PER', 'PBV', 'bandarmology_score', 'latest_close', 'latest_volume'
+]
 extra_columns = [
-    'ticker', 'PER', 'PBV', 'bandarmology_score', 'latest_close', 'latest_volume',
-    'Foreign_Buy_Ratio', 'macro_sentiment', 'candlestick_pattern'
+    'ticker', 'Foreign_Buy_Ratio', 'macro_sentiment', 'candlestick_pattern'
 ]
 
-# Cek dan isi missing columns jika perlu
-for col in extra_columns:
+for col in model_features + extra_columns:
     if col not in df.columns:
-        df[col] = 0  # atau np.nan / default value
+        df[col] = 0
+
+# Hitung Volume Spike jika belum ada
+if 'Volume_Spike' not in df.columns or df['Volume_Spike'].isnull().all():
+    df['Volume_Spike'] = (df['latest_volume'] > df['latest_volume'].rolling(5).mean()).astype(int)
+else:
+    df['Volume_Spike'] = df['Volume_Spike'].astype(int)
 
 # ------------------------------
 # Preprocessing dan prediksi
 # ------------------------------
-X = df[model_features].copy()
-X['Volume_Spike'] = X['Volume_Spike'].astype(int)
-
+X = df[model_features]
 X_scaled, _ = scale_features(X, method='standard', scaler=scaler)
 
-df['prediction'] = model.predict(X_scaled)
-df['probability'] = model.predict_proba(X_scaled)[:, 1]
-df['recommendation'] = df['prediction'].apply(generate_recommendation)
+# Prediksi
+try:
+    df['prediction'] = model.predict(X_scaled)
+    df['probability'] = model.predict_proba(X_scaled)[:, 1]
+except Exception as e:
+    print(f"❌ Error prediksi: {e}")
+    df['prediction'] = 0
+    df['probability'] = 0.0
+
+# Generate rekomendasi
+try:
+    df['recommendation'] = df['prediction'].apply(generate_recommendation)
+except:
+    df['recommendation'] = "NEUTRAL"
 
 # ------------------------------
-# Output dan simpan
+# Simpan hasil
 # ------------------------------
-cols_output = extra_columns + model_features + ['probability', 'recommendation']
-output_df = df[cols_output]
-
+output_df = df[extra_columns + model_features + ['probability', 'recommendation']]
 save_buy_signals(output_df, output_path="buy_signals.csv")
 
 # ------------------------------
-# Tampilkan hasil
+# Tampilkan hasil akhir
 # ------------------------------
-print("✅ Selesai. Rekomendasi disimpan ke buy_signals.csv\n")
+print("\n✅ Selesai. Rekomendasi disimpan ke buy_signals.csv")
 print(output_df[['ticker', 'RSI', 'Stoch', 'PER', 'PBV', 'bandarmology_score',
                  'Foreign_Buy_Ratio', 'macro_sentiment', 'candlestick_pattern', 'recommendation']])

@@ -17,7 +17,19 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
     # Format dan sort data
     df['date'] = pd.to_datetime(df['date'])
     df.sort_values(['ticker', 'date'], inplace=True)
+    df['ticker'] = df['ticker'].str.replace('.JK', '', regex=False)
 
+    # Pastikan kolom yang diperlukan ada
+    required_columns = ['ticker', 'RSI', 'Stoch', 'BB_bbm', 'BB_bbh', 'BB_bbl', 'Volume_Spike']
+    missing_cols = [col for col in required_columns if col not in df.columns]
+    if missing_cols:
+        raise ValueError(f"Missing columns in latest_realtime_data.csv: {missing_cols}")
+
+    # Tambahkan kolom dummy jika tidak ada, untuk kesesuaian dengan training set
+    for col in ['PER', 'PBV', 'bandarmology_score', 'Foreign_Buy_Ratio', 'macro_sentiment', 'candlestick_pattern', 'target']:
+        if col not in df.columns:
+            df[col] = 0
+            
     result = []
     for ticker, group in df.groupby('ticker'):
         group = group.copy()

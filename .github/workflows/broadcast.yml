@@ -27,23 +27,30 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-pip-
 
-    - name: Install dependencies
+    - name: Install Python dependencies
       run: |
-        pip install --upgrade pip
+        python -m pip install --upgrade pip
         pip install -r requirements.txt
-    - name: Run fetch realtime data
-      run:
-          python fetch_data.py
-    - name: Run model training
-      run:
-          python train_model.py
+
+    - name: Fetch realtime data
+      run: python fetch_data.py
+
+    - name: Train hybrid models
+      run: python train_model.py
+      env:
+        MODEL_DIR: models/
+        DATASET_PATH: historical_idx_dataset.csv
 
     - name: Run scanner bot
       run: python scanner_bot.py
+      env:
+        DATASET_PATH: historical_idx_dataset.csv
+        REALTIME_DATA_PATH: latest_realtime_data.csv
+        MODEL_DIR: models/
 
     - name: Run broadcast bot
       run: python broadcast_bot.py
-
-    env:
-      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      env:
+        TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        BUY_SIGNAL_PATH: buy_signals.csv

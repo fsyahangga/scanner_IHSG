@@ -1,112 +1,93 @@
 import pandas as pd
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
+import os
+import joblib
+
 from sklearn.model_selection import StratifiedKFold
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_auc_score
-from utils import calculate_indicators, scale_features, save_model_and_scaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
+from xgboost import XGBClassifier
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, Dropout
+from tensorflow.keras.callbacks import EarlyStopping
 
-def load_dataset(file_path: str) -> pd.DataFrame:
-    try:
-        df = pd.read_csv(file_path)
-        print(f"✅ Loaded: {file_path}")
-        return df
-    except Exception as e:
-        print(f"❌ Failed to load {file_path}: {e}")
-        return pd.DataFrame()
+from utils import calculate_indicators, load_latest_data
 
+DATA_PATH = 'historical_idx_dataset.csv'
+MODEL_DIR = 'models'
 
-def ensure_columns(df: pd.DataFrame, required_cols: list, default_value=np.nan) -> pd.DataFrame:
-    for col in required_cols:
-        if col not in df.columns:
-            print(f"⚠️ Kolom {col} tidak ditemukan, menambahkan default.")
-            df[col] = default_value
-    return df
+if not os.path.exists(MODEL_DIR):
+    os.makedirs(MODEL_DIR)
 
-
-def preprocess_latest_df(latest_df: pd.DataFrame) -> pd.DataFrame:
-    latest_df = calculate_indicators(latest_df)
-    latest_df.dropna(inplace=True)
-
-    expected_cols = [
-        'ticker', 'RSI', 'Stoch', 'BB_bbm', 'BB_bbh', 'BB_bbl',
-        'volume', 'PER', 'PBV', 'bandarmology_score', 'close', 'target'
-    ]
-    latest_df = latest_df[expected_cols]
-
-    latest_df.columns = [
-        'ticker', 'RSI', 'Stoch', 'BB_bbm', 'BB_bbh', 'BB_bbl',
-        'latest_volume', 'PER', 'PBV', 'bandarmology_score', 'latest_close', 'target'
-    ]
-    return latest_df
-
-
-def prepare_features(df: pd.DataFrame) -> (pd.DataFrame, pd.Series):
-    # Hitung Volume Spike jika belum ada
-    if 'Volume_Spike' not in df.columns:
-        df['Volume_Spike'] = (df['latest_volume'] > df['latest_volume'].rolling(5).mean()).astype(int)
-
-    feature_cols = [
-        'RSI', 'Stoch', 'BB_bbm', 'BB_bbh', 'BB_bbl', 'Volume_Spike',
-        'PER', 'PBV', 'bandarmology_score', 'latest_close', 'latest_volume'
-    ]
-
-    df = df.dropna(subset=feature_cols + ['target'])
-    df = df[df['target'].notna() & np.isfinite(df['target'])]
-
-    X = df[feature_cols]
-    y = df['target'].astype(int)
-    return X, y
-
-
-def train_evaluate_model(X_scaled, y) -> RandomForestClassifier:
+def train_random_forest(X, y):
     model = RandomForestClassifier(n_estimators=100, random_state=42)
-    kfold = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-
-    auc_scores = []
-    for train_idx, val_idx in kfold.split(X_scaled, y):
-        X_train, X_val = X_scaled[train_idx], X_scaled[val_idx]
-        y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
-
-        model.fit(X_train, y_train)
-        y_pred_proba = model.predict_proba(X_val)[:, 1]
-        auc = roc_auc_score(y_val, y_pred_proba)
-        auc_scores.append(auc)
-
-    print(f"✅ AUC scores (5-fold): {auc_scores}")
-    print(f"📊 Mean AUC: {np.mean(auc_scores):.4f}")
+    model.fit(X, y)
+    joblib.dump(model, os.path.join(MODEL_DIR, 'random_forest.pkl'))
     return model
 
+def train_xgboost(X, y):
+    model = XGBClassifier(use_label_encoder=False, eval_metric='logloss')
+    model.fit(X, y)
+    joblib.dump(model, os.path.join(MODEL_DIR, 'xgboost.pkl'))
+    return model
+
+def train_lstm(X, y):
+    X_reshaped = np.reshape(X.values, (X.shape[0], 1, X.shape[1]))
+    model = Sequential()
+    model.add(LSTM(64, input_shape=(1, X.shape[1]), return_sequences=False))
+    model.add(Dropout(0.2))
+    model.add(Dense(1, activation='sigmoid'))
+
+    model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+    early_stop = EarlyStopping(monitor='val_loss', patience=5)
+    model.fit(X_reshaped, y, epochs=50, batch_size=16, validation_split=0.2, callbacks=[early_stop], verbose=0)
+    model.save(os.path.join(MODEL_DIR, 'lstm_model.h5'))
+    return model
+
+def preprocess_data(df):
+    df = df.dropna()
+    X = df.drop(columns=['ticker', 'date', 'target'])
+    y = df['target']
+
+    scaler_std = StandardScaler()
+    scaler_minmax = MinMaxScaler()
+    
+    X_scaled_std = scaler_std.fit_transform(X)
+    X_scaled_minmax = scaler_minmax.fit_transform(X)
+
+    joblib.dump(scaler_std, os.path.join(MODEL_DIR, 'scaler_std.pkl'))
+    joblib.dump(scaler_minmax, os.path.join(MODEL_DIR, 'scaler_minmax.pkl'))
+
+    return pd.DataFrame(X_scaled_std, columns=X.columns), y
+
+def evaluate_model(model, X, y):
+    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    scores = []
+    for train_idx, test_idx in skf.split(X, y):
+        X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+        y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+
+        model.fit(X_train, y_train)
+        y_pred = model.predict_proba(X_test)[:, 1]
+        score = roc_auc_score(y_test, y_pred)
+        scores.append(score)
+
+    print(f'Model AUC: {np.mean(scores):.4f}')
 
 def main():
-    historical_df = load_dataset("historical_idx_dataset.csv")
-    latest_df = load_dataset("latest_realtime_data.csv")
+    df = pd.read_csv(DATA_PATH)
+    df = calculate_indicators(df)
 
-    # Pastikan kolom wajib tersedia di real-time data
-    required_cols = [
-        'PER', 'PBV', 'bandarmology_score',
-        'Foreign_Buy_Ratio', 'macro_sentiment', 'candlestick_pattern', 'target'
-    ]
-    latest_df = ensure_columns(latest_df, required_cols)
+    X, y = preprocess_data(df)
 
-    latest_df = preprocess_latest_df(latest_df)
+    rf_model = train_random_forest(X, y)
+    xgb_model = train_xgboost(X, y)
+    lstm_model = train_lstm(X, y)
 
-    # Gabungkan data historis dan real-time
-    combined_df = pd.concat([historical_df, latest_df], ignore_index=True)
+    evaluate_model(rf_model, X, y)
+    evaluate_model(xgb_model, X, y)
 
-    # Siapkan fitur & target
-    X, y = prepare_features(combined_df)
-
-    # Scaling
-    X_scaled, scaler = scale_features(X, method='standard')
-
-    # Training + Evaluasi
-    model = train_evaluate_model(X_scaled, y)
-
-    # Save model dan scaler
-    save_model_and_scaler(model, scaler, name_prefix="rf")
-    print("💾 Model & scaler saved to: models/rf_model.pkl and rf_scaler.pkl")
-
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
