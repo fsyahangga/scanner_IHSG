@@ -27,6 +27,7 @@ def load_latest_data(path='latest_realtime_data.csv') -> pd.DataFrame:
 
     # Hitung ulang indikator teknikal
     df = calculate_indicators(df)
+    logger.info(f"Data setelah indikator: {df.shape}, nulls: \n{df.isnull().sum()}")
 
     # Tambahkan fitur tambahan
     df['candlestick_pattern'] = detect_candlestick_pattern(df)
