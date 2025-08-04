@@ -47,7 +47,7 @@ def calculate_indicators(df):
     df['RSI'] = ta.rsi(df['close'], length=14)
 
     # Stochastic
-    stoch = ta.stoch(df['High'], df['Low'], df['Close'])
+    stoch = ta.stoch(df['high'], df['low'], df['close'])
 
     if stoch is not None and 'STOCHk_14_3_3' in stoch.columns:
         df['Stoch'] = stoch['STOCHk_14_3_3']
