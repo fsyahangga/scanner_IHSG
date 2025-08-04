@@ -47,8 +47,21 @@ def train_lstm(X, y):
     return model
 
 def preprocess_data(df):
-    df = df.dropna()
-    X = df.drop(columns=['ticker', 'date', 'target'])
+    # Pilih fitur dan target
+    features = [
+        'RSI', 'Stoch', 'BB_bbm', 'BB_bbh', 'BB_bbl',
+        'Volume_Spike', 'MACD', 'MACD_signal', 'EMA_12', 'EMA_26', 'ADX',
+        'Foreign_Buy_Ratio', 'Bandar_Activity', 'Price_Change',
+        'Stochastic_Signal', 'Candle_Pattern_Bullish', 'Candle_Pattern_Bearish',
+        'candlestick_pattern'
+    ]
+
+    df = df.dropna(subset=features + ['target'])  # hindari NaN di fitur atau target
+
+    if df.empty:
+        raise ValueError("Data kosong setelah preprocessing. Cek apakah input dataset memiliki cukup data yang valid.")
+
+    X = df[features]
     y = df['target']
 
     scaler_std = StandardScaler()
@@ -57,10 +70,12 @@ def preprocess_data(df):
     X_scaled_std = scaler_std.fit_transform(X)
     X_scaled_minmax = scaler_minmax.fit_transform(X)
 
-    joblib.dump(scaler_std, os.path.join(MODEL_DIR, 'scaler_std.pkl'))
-    joblib.dump(scaler_minmax, os.path.join(MODEL_DIR, 'scaler_minmax.pkl'))
+    # Simpan scaler untuk penggunaan inference
+    joblib.dump(scaler_std, "models/scaler_std.pkl")
+    joblib.dump(scaler_minmax, "models/scaler_minmax.pkl")
 
-    return pd.DataFrame(X_scaled_std, columns=X.columns), y
+    return X_scaled_std, y
+
 
 def evaluate_model(model, X, y):
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
