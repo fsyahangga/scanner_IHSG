@@ -7,7 +7,7 @@ from ta.momentum import RSIIndicator, StochasticOscillator
 from ta.volatility import BollingerBands
 import os
 import logging
-
+import logger
 logging.basicConfig(level=logging.INFO)
 
 def load_latest_data(path='latest_realtime_data.csv') -> pd.DataFrame:
@@ -30,12 +30,15 @@ def load_latest_data(path='latest_realtime_data.csv') -> pd.DataFrame:
 
     # Tambahkan fitur tambahan
     df['candlestick_pattern'] = detect_candlestick_pattern(df)
+    logger.info(f"Setelah candlestick_pattern: {df['candlestick_pattern'].value_counts()}")
     df['macro_sentiment'] = get_macro_sentiment()
 
     # Loop untuk foreign flow & bandarmology
     df['Foreign_Buy_Ratio'] = df['ticker'].apply(lambda x: get_foreign_flow_data(f"{x}.JK")[1])
     df['bandarmology_score'] = df['ticker'].apply(lambda x: calculate_bandarmology_score(x))
-
+    df = df.dropna()
+    if df.empty:
+        logger.warning("Data kosong setelah dropna()")
     return df
 
 def calculate_indicators(df):
